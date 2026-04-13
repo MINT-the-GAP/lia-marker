@@ -1,6 +1,3 @@
-// Canonical slide-detection logic — these are the _LOCAL implementations from FINAL_HL_RENDER_V10.
-// Earlier definitions of these functions in the monolith were dead code, monkey-patched over.
-
 import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC } from "../dom/context";
 import type { HighlightItem } from "../types";
 import { rangeFromAnchor } from "../dom/ranges";

@@ -36,7 +36,6 @@ if (prev?.__alive) {
   try { prev.moTheme?.disconnect(); } catch(e){}
   try { prev.roLayout?.disconnect(); } catch(e){}
   try { if (prev.__layoutTimer) ROOT_WIN.clearInterval(prev.__layoutTimer as number); } catch(e){}
-  try { if (prev.__slideSyncTimer) ROOT_WIN.clearInterval(prev.__slideSyncTimer as number); } catch(e){}
   try { CONTENT_DOC.getElementById("lia-hl-overlay")?.remove(); } catch(e){}
 }
 
@@ -147,16 +146,6 @@ function scheduleSync(): void {
 
 try { ROOT_WIN.addEventListener("hashchange", () => scheduleSync()); } catch(e){}
 try { CONTENT_WIN.addEventListener("hashchange", () => scheduleSync()); } catch(e){}
-
-// ─── Slide sync timer (10ms) — Step 5 will replace this ──────────────────────
-I.__slideSyncTimer = ROOT_WIN.setInterval(() => {
-  if (!I.__alive) {
-    try { ROOT_WIN.clearInterval(I.__slideSyncTimer as number); } catch(e){}
-    return;
-  }
-  if (!I.state.active && !(I.HL && I.HL.length)) return;
-  doRender();
-}, 10);
 
 // ─── Tick (boot + DOM observer) ───────────────────────────────────────────────
 function tick(): void {

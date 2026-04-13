@@ -45,7 +45,6 @@ export interface Instance {
   lastBurstAt: number;
   __layoutSig?: string;
   __layoutTimer?: number;
-  __slideSyncTimer?: number;
   __prefillKeys?: Set<string>;
   [key: string]: unknown;
 }
