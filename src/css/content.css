@@ -1,0 +1,47 @@
+:root {
+  --hl-yellow: rgba(255, 247, 0, .45);
+  --hl-green:  rgba(144, 238, 144, .45);
+  --hl-blue:   rgba(0, 76, 255, .45);
+  --hl-pink:   rgba(255, 0, 212, .45);
+  --hl-orange: rgba(255, 153, 0, .45);
+  --hl-red:    rgba(255, 0, 0, .45);
+  --hl-ui-bg:     rgba(255, 255, 255, .92);
+  --hl-ui-fg:     rgba(0, 0, 0, .88);
+  --hl-ui-border: rgba(0, 0, 0, .14);
+  --hl-ui-muted:  rgba(0, 0, 0, .62);
+  --hl-ui-shadow: 0 16px 42px rgba(0, 0, 0, .16);
+  --hl-accent: rgb(11, 95, 255);
+  --hl-z: 9999999;
+}
+
+#lia-hl-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: calc(var(--hl-z) - 1) !important;
+  pointer-events: none !important;
+}
+
+.lia-hl-rect {
+  position: absolute !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .08) inset;
+  mix-blend-mode: multiply;
+  pointer-events: none !important;
+  cursor: default !important;
+}
+.lia-hl-rect[data-kind="user"] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+.lia-hl-rect[data-hl="yellow"] { background: var(--hl-yellow); }
+.lia-hl-rect[data-hl="green"]  { background: var(--hl-green); }
+.lia-hl-rect[data-hl="blue"]   { background: var(--hl-blue); }
+.lia-hl-rect[data-hl="pink"]   { background: var(--hl-pink); }
+.lia-hl-rect[data-hl="orange"] { background: var(--hl-orange); }
+.lia-hl-rect[data-hl="red"]    { background: var(--hl-red); }
+
+.hlq-proxy input,
+.hlq-proxy textarea,
+.hlq-proxy select { display: none !important; }
+.hlq-proxy .hlq-msg { font-weight: 700; opacity: .85; }

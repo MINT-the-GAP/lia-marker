@@ -1,0 +1,19 @@
+.hlq-proxy {
+  display: inline-flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+.hlq-proxy .hlq-btn,
+.hlq-proxy .hlq-msg { display: none !important; }
+.hlq-proxy .hlq-lia { display: contents; }
+
+.lia-hlq-debug .hlq-proxy .hlq-btn,
+.lia-hlq-debug .hlq-proxy .hlq-msg { display: inline-flex !important; }
+.lia-hlq-debug .lia-hl-target {
+  outline: 2px dashed currentColor;
+  outline-offset: -1px;
+  opacity: .7;
+}
