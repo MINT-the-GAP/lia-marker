@@ -86,8 +86,8 @@ export function findUserHighlightAtPoint(I: Instance, clientX: number, clientY: 
   for (let i = I.HL.length - 1; i >= 0; i--) {
     const item = I.HL[i];
     if (!item) continue;
-    if ((item.kind || "user") !== "user") continue;
-    if (activeSlide && (item.slide || "global") !== activeSlide) continue;
+    if (item.kind !== "user") continue;
+    if (activeSlide && item.slide !== activeSlide) continue;
 
     for (const r of (item.rects || [])) {
       if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return item;
@@ -106,14 +106,14 @@ export function clearSlide(I: Instance): void {
     const sid = getActiveSlideId();
     if (sid) {
       I.HL = I.HL.filter(it => {
-        const sameSlide = (it.slide || "global") === sid;
+        const sameSlide = it.slide === sid;
         if (!sameSlide) return true;
-        return !removableKinds.has(it.kind || "user");
+        return !removableKinds.has(it.kind);
       });
     } else {
-      I.HL = I.HL.filter(it => !removableKinds.has(it.kind || "user"));
+      I.HL = I.HL.filter(it => !removableKinds.has(it.kind));
     }
   } else {
-    I.HL = I.HL.filter(it => !removableKinds.has(it.kind || "user"));
+    I.HL = I.HL.filter(it => !removableKinds.has(it.kind));
   }
 }

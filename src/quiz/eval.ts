@@ -79,13 +79,13 @@ export function mergedUserRects(
   const OPT = { yTol: 4, gapTol: 12, minW: 2, minH: 2, padX: 0, padY: 0 };
 
   for (const h of I.HL) {
-    if ((h.kind || "user") !== "user") continue;
-    if ((h.scope || "global") !== scopeId) continue;
-    if ((h.slide || "global") !== slideId) continue;
+    if (h.kind !== "user") continue;
+    if (h.scope !== scopeId) continue;
+    if (h.slide !== slideId) continue;
     if (mode === "only"   && h.color !== refColor) continue;
     if (mode === "except" && h.color === refColor) continue;
 
-    const rs = Array.isArray(h.rects) ? h.rects : [];
+    const rs = h.rects;
     if (!rs.length) continue;
 
     out.push(...mergeRectsToLines(rs, OPT));
@@ -159,10 +159,10 @@ export function evalScope(
   const allTargetRectsExp = allTargetRects.map(r => expandRect(r, HLQ_PAD));
 
   for (const h of I.HL) {
-    if ((h.kind || "user") !== "user") continue;
-    if ((h.scope || "global") !== scopeId) continue;
-    if ((h.slide || "global") !== slideId) continue;
-    if (!Array.isArray(h.rects) || !h.rects.length) continue;
+    if (h.kind !== "user") continue;
+    if (h.scope !== scopeId) continue;
+    if (h.slide !== slideId) continue;
+    if (!h.rects.length) continue;
 
     const uA = rectArea(h.rects);
     if (uA <= 0) continue;

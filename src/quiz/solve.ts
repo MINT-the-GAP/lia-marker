@@ -2,7 +2,6 @@ import { ensureScopeIds } from "../highlight/store";
 import type { Instance, HLColor } from "../types";
 import { rangeFromAnchor } from "../dom/ranges";
 import { packedRectsFromRange } from "../dom/rects";
-import { getActiveSlideId, slideIdFromNode } from "../slides";
 import { collectTargetsInScope, hlqActiveSlideId } from "./eval";
 
 export function solveScope(I: Instance, scopeEl: Element | null, renderFn: () => void): void {
@@ -13,8 +12,8 @@ export function solveScope(I: Instance, scopeEl: Element | null, renderFn: () =>
   // Remove old solutions for this scope+slide
   I.HL = I.HL.filter(h => !(
     (h.kind === "solution") &&
-    ((h.scope || "global") === scopeId) &&
-    ((h.slide || "global") === slideId)
+    h.scope === scopeId &&
+    h.slide === slideId
   ));
 
   const targets = collectTargetsInScope(scopeEl);

@@ -13,12 +13,12 @@ function dbg(...args: unknown[]): void {
 }
 
 export function drawRects(item: Instance["HL"][number], overlay: Element, S: ReturnType<typeof getScrollCtx>): void {
-  for (const rr of (item.rects || [])) {
+  for (const rr of item.rects) {
     const el = CONTENT_DOC.createElement("div");
     el.className = "lia-hl-rect";
     el.setAttribute("data-hl", item.color);
     el.setAttribute("data-id", String(item.id));
-    el.setAttribute("data-kind", item.kind || "user");
+    el.setAttribute("data-kind", item.kind);
     el.style.left   = `${Math.round(S.ox + (rr.x - S.sx))}px`;
     el.style.top    = `${Math.round(S.oy + (rr.y - S.sy))}px`;
     el.style.width  = `${Math.round(rr.w)}px`;
