@@ -1,0 +1,12 @@
+{
+  "name": "lia-marker",
+  "version": "0.0.1",
+  "description": "LiaScript Textmarker plugin — interactive text highlighting and marker-quiz for LiaScript courses",
+  "scripts": {
+    "build": "parcel build src/index.ts --dist-dir dist --no-scope-hoist"
+  },
+  "devDependencies": {
+    "parcel": "^2.13.3",
+    "typescript": "^5.8.3"
+  }
+}
