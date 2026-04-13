@@ -8,7 +8,7 @@ comment:  LiaScript Textmarker — interactive text highlighting and marker-quiz
 
 script:   ./dist/index.js
 
-TextmarkerQuiz: <span class="hlq-proxy"><span class="hlq-msg"></span><button class="hlq-btn" type="button" data-hlq-act="check">Prüfen</button><button class="hlq-btn" type="button" data-hlq-act="solve">Auflösen</button><span class="hlq-lia">[[ 1 ]]</span></span>
+TextmarkerQuiz: <span class="hlq-proxy"><span class="hlq-msg"></span><button class="hlq-btn" type="button" data-hlq-act="check">Check</button><button class="hlq-btn" type="button" data-hlq-act="solve">Solve</button><span class="hlq-lia">[[ 1 ]]</span></span>
 
 markred:    <span class="lia-hl-target" data-hl-expected="red"    data-hl-quiz="default">@0</span>
 markblue:   <span class="lia-hl-target" data-hl-expected="blue"   data-hl-quiz="default">@0</span>
@@ -117,7 +117,7 @@ If you prefer not to use `import:`, copy the following block directly into the h
 ```markdown
 script:   https://cdn.jsdelivr.net/gh/MINT-the-GAP/lia-marker@0.0.1/dist/index.js
 
-TextmarkerQuiz: <span class="hlq-proxy"><span class="hlq-msg"></span><button class="hlq-btn" type="button" data-hlq-act="check">Prüfen</button><button class="hlq-btn" type="button" data-hlq-act="solve">Auflösen</button><span class="hlq-lia">[[ 1 ]]</span></span>
+TextmarkerQuiz: <span class="hlq-proxy"><span class="hlq-msg"></span><button class="hlq-btn" type="button" data-hlq-act="check">Check</button><button class="hlq-btn" type="button" data-hlq-act="solve">Solve</button><span class="hlq-lia">[[ 1 ]]</span></span>
 
 markred:    <span class="lia-hl-target" data-hl-expected="red"    data-hl-quiz="default">@0</span>
 markblue:   <span class="lia-hl-target" data-hl-expected="blue"   data-hl-quiz="default">@0</span>

@@ -1,7 +1,7 @@
 import { ROOT_WIN, ROOT_DOC } from "../dom/context";
 import type { Instance } from "../types";
 
-const HL_UI_OVERLAY_ID  = "lia-hl-ui-overlay-v1";
+const HL_UI_OVERLAY_ID = "lia-hl-ui-overlay-v1";
 const HL_INLINE_SLOT_ID = "lia-hl-inline-slot-v1";
 
 export function findHeaderLeft(): Element | null {
@@ -28,7 +28,7 @@ function getHLTOCButtonRect(): DOMRect | null {
     const r = tocBtn.getBoundingClientRect();
     if (!r || r.width < 6 || r.height < 6) return null;
     return r;
-  } catch(e) { return null; }
+  } catch (e) { return null; }
 }
 
 function isHLStackPeerVisible(el: Element | null): boolean {
@@ -38,7 +38,7 @@ function isHLStackPeerVisible(el: Element | null): boolean {
     if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return false;
     const r = el.getBoundingClientRect();
     return !!(r && r.width > 4 && r.height > 4);
-  } catch(e) { return false; }
+  } catch (e) { return false; }
 }
 
 function getHLNightlyStackIndex(): number {
@@ -106,9 +106,9 @@ function placeHLButtonInCorrectHost(): void {
   if (slot && slot.parentNode) slot.parentNode.removeChild(slot);
 
   overlay.style.left = "0px";
-  overlay.style.top  = "0px";
+  overlay.style.top = "0px";
   btn.style.left = "";
-  btn.style.top  = "";
+  btn.style.top = "";
 }
 
 export function clamp(v: number, a: number, b: number): number {
@@ -129,14 +129,14 @@ export function positionHLButton(): void {
 
   placeHLButtonInCorrectHost();
 
-  const vp  = getViewport();
+  const vp = getViewport();
   const pad = 8, gap = 8;
 
   let bw = 40, bh = 40;
   try {
     const br = btn.getBoundingClientRect();
     if (br && br.width > 6 && br.height > 6) { bw = br.width; bh = br.height; }
-  } catch(e){}
+  } catch (e) { }
 
   let left = pad, top = pad;
   const tocRect = getHLTOCButtonRect();
@@ -144,12 +144,12 @@ export function positionHLButton(): void {
   if (tocRect) {
     if (shouldUseHLNightlyStackDock()) {
       const stackIndex = getHLNightlyStackIndex();
-      const stackGap   = 6, stackPitch = 28;
+      const stackGap = 6, stackPitch = 28;
       left = tocRect.left + (tocRect.width - bw) / 2;
-      top  = tocRect.bottom + stackGap + stackIndex * stackPitch;
+      top = tocRect.bottom + stackGap + stackIndex * stackPitch;
     } else {
       left = tocRect.right + gap;
-      top  = tocRect.top + (tocRect.height - bh) / 2;
+      top = tocRect.top + (tocRect.height - bh) / 2;
     }
   } else {
     const leftHost = findHeaderLeft();
@@ -158,12 +158,12 @@ export function positionHLButton(): void {
   }
 
   left = clamp(left, pad, vp.w - bw - pad);
-  top  = clamp(top,  pad, vp.h - bh - pad);
+  top = clamp(top, pad, vp.h - bh - pad);
 
   overlay.style.left = `${Math.round(vp.ox)}px`;
-  overlay.style.top  = `${Math.round(vp.oy)}px`;
+  overlay.style.top = `${Math.round(vp.oy)}px`;
   btn.style.left = `${Math.round(left)}px`;
-  btn.style.top  = `${Math.round(top)}px`;
+  btn.style.top = `${Math.round(top)}px`;
 }
 
 export function detectNavStack(): void {
@@ -175,11 +175,12 @@ export function ensureRootButtonAndPanel(): void {
 
   let btn = ROOT_DOC.getElementById("lia-hl-btn");
   if (!btn) {
-    btn = ROOT_DOC.createElement("button");
-    btn.id = "lia-hl-btn";
-    btn.type = "button";
-    btn.setAttribute("aria-label", "Text Highlighter");
-    btn.setAttribute("title", "Text Highlighter");
+    const button = ROOT_DOC.createElement("button");
+    button.id = "lia-hl-btn";
+    button.type = "button";
+    button.setAttribute("aria-label", "Text Highlighter");
+    button.setAttribute("title", "Text Highlighter");
+    btn = button;
     btn.innerHTML = `
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0 0-3L16.5 4.5a2.1 2.1 0 0 0-3 0L3 15v5z"
@@ -234,7 +235,7 @@ function clearHLPosTimers(I: Instance): void {
   try {
     if (!I.posTimers) I.posTimers = [];
     while (I.posTimers.length) ROOT_WIN.clearTimeout(I.posTimers.pop()!);
-  } catch(e){}
+  } catch (e) { }
 }
 
 export function scheduleHLRepositionBurst(

@@ -116,7 +116,7 @@ wireContentEvents(
   (x: number, y: number) => {
     const hit = findUserHighlightAtPoint(I, x, y);
     if (hit) { I.HL = I.HL.filter(h => h.id !== hit.id); }
-    return hit;
+    return !!hit;
   }
 );
 

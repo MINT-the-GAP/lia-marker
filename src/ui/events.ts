@@ -150,7 +150,7 @@ export function wireContentEvents(
   I: Instance,
   renderFn: RenderFn,
   addHighlightFn: () => void,
-  eraseAtPointFn: (x: number, y: number) => void
+  eraseAtPointFn: (x: number, y: number) => boolean
 ): void {
   CONTENT_DOC.addEventListener("mouseup", (e) => {
     const isForeign = !!(e.target as Element)?.closest?.([

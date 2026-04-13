@@ -52,9 +52,9 @@ function inferActionLoose(btn: Element): "check" | "solve" | null {
   if (clsList.includes("lia-quiz__check")) return "check";
   if (clsList.includes("lia-quiz__resolve")) return "solve";
 
-  if (t === "prüfen" || t === "check" || t.startsWith("prüfen")) return "check";
-  if (t === "auflösen" || t === "lösung" || t === "solve" || t === "show solution" ||
-      t.startsWith("auflösen") || t.startsWith("lösung")) return "solve";
+  if (t === "check" || t.startsWith("check")) return "check";
+  if (t === "solve" || t === "solution" || t === "show solution" ||
+      t.startsWith("solve") || t.startsWith("solution")) return "solve";
 
   return null;
 }
@@ -125,11 +125,11 @@ function handleHLQAction(
     const r = evalScope(I, scopeEl);
     setProxyMsg(proxy,
       r.total
-        ? `Treffer: ${r.ok}/${r.total}` +
-          (r.badColor ? ` — falsche Farbe: ${r.badColor}` : "") +
-          (r.tooWide  ? ` — zu groß: ${r.tooWide}` : "") +
+        ? `Hits: ${r.ok}/${r.total}` +
+          (r.badColor ? ` — wrong color: ${r.badColor}` : "") +
+          (r.tooWide  ? ` — too large: ${r.tooWide}` : "") +
           (r.extra    ? ` — extra: ${r.extra}` : "")
-        : "Keine Targets gefunden."
+        : "No targets found."
     );
     setLiaValue(input, r.pass ? 1 : 0);
     return;
@@ -137,7 +137,7 @@ function handleHLQAction(
 
   if (act === "solve") {
     solveScope(I, scopeEl, renderFn);
-    setProxyMsg(proxy, "Lösung eingeblendet.");
+    setProxyMsg(proxy, "Solution displayed.");
     setLiaValue(input, 1);
     return;
   }
