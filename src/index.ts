@@ -223,6 +223,13 @@ try {
   };
 } catch(e){}
 
+// ─── Freeze API ───────────────────────────────────────────────────────────────
+REG.setHighlights = function(hlArray: any[]) {
+  if (!I || !I.__alive) return;
+  I.HL = hlArray || [];
+  doRender();
+};
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 tick();
 doRender();
