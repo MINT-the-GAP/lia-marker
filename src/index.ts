@@ -147,6 +147,14 @@ function scheduleSync(): void {
 try { ROOT_WIN.addEventListener("hashchange", () => scheduleSync()); } catch(e){}
 try { CONTENT_WIN.addEventListener("hashchange", () => scheduleSync()); } catch(e){}
 
+// LiaScript arrow navigation uses pushState/replaceState, not hashchange.
+try {
+  const _push = ROOT_WIN.history.pushState.bind(ROOT_WIN.history);
+  ROOT_WIN.history.pushState = function(...args) { _push(...args); scheduleSync(); };
+  const _replace = ROOT_WIN.history.replaceState.bind(ROOT_WIN.history);
+  ROOT_WIN.history.replaceState = function(...args) { _replace(...args); scheduleSync(); };
+} catch(e){}
+
 // ─── Tick (boot + DOM observer) ───────────────────────────────────────────────
 function tick(): void {
   ensureCSS();
