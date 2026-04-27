@@ -54,6 +54,15 @@ export function render(I: Instance, overlay: Element): void {
   for (const item of (I.HL || [])) {
     if (!item || !item.anchor) continue;
 
+    // If the item belongs to a scoped .markerquiz and that scope is not
+    // currently in the DOM, skip it. This handles LiaScript's single-section
+    // rendering where shouldFilterBySlide() returns false but highlights must
+    // not bleed across slides.
+    if (item.scope && item.scope !== "global") {
+      const scopeEl = CONTENT_DOC.querySelector(`.markerquiz[data-hl-scope="${item.scope}"]`);
+      if (!scopeEl) continue;
+    }
+
     const r = rangeFromAnchor(item.anchor);
     if (!r) {
       dbg("item:range-null", { id: item.id, stored: item.slide, kind: item.kind });
