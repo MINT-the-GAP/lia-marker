@@ -116,7 +116,7 @@ body.lia-hl-navstack.lia-hl-active #lia-hl-btn {
   position: fixed !important;
   z-index: var(--hl-z) !important;
   display: none !important;
-  width: 180px !important;
+  width: 130px !important;
   border-radius: 12px !important;
   border: 1px solid var(--hl-ui-border) !important;
   background-color: var(--hl-ui-bg) !important;
@@ -159,9 +159,9 @@ body.lia-hl-panel-open #lia-hl-panel { display: block !important; }
 
 /* ── Color swatches ── */
 .hl-colors {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 6px !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, 24px) !important;
+  gap: 8px !important;
   justify-content: center !important;
 }
 .hl-swatch {
@@ -177,10 +177,11 @@ body.lia-hl-panel-open #lia-hl-panel { display: block !important; }
 
 .hl-hint {
   display: block !important;
-  font-size: 10px !important;
+  font-size: 13px !important;
   text-transform: uppercase !important;
   letter-spacing: .06em !important;
-  opacity: .5 !important;
+  opacity: .7 !important;
+  font-weight: 700 !important;
   text-align: center !important;
   margin-bottom: 6px !important;
 }
@@ -195,11 +196,15 @@ body.lia-hl-panel-open #lia-hl-panel { display: block !important; }
   border: 1px solid rgba(200, 0, 0, .3) !important;
   background: rgba(200, 0, 0, .08) !important;
   border-radius: 8px !important;
-  padding: 6px 8px !important;
+  padding: 8px 10px !important;
   cursor: pointer !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
   color: rgba(180, 0, 0, .9) !important;
   text-align: center !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 /* ── Quiz proxy (ROOT_DOC) ── */

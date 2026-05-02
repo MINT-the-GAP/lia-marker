@@ -9,7 +9,7 @@ import { ensurePrefills } from "./highlight/prefill";
 import { ensureRevealSlideObserver } from "./slides";
 import { adaptUIVars } from "./theme";
 import { ensureRootButtonAndPanel, positionHLButton, detectNavStack } from "./ui/button";
-import { positionPanelSmart, ensureSwatchesOnce, applyUI } from "./ui/panel";
+import { positionPanelSmart, ensureSwatchesOnce, applyUI, localizePanelText } from "./ui/panel";
 import { wireRootDelegationOnce, wireUIOnce, wireContentEvents } from "./ui/events";
 import { wireHLQEvents } from "./quiz/events";
 import { layoutSignature } from "./highlight/render";
@@ -164,6 +164,7 @@ function tick(): void {
   ROOT_WIN.requestAnimationFrame(() => {
     try {
       ensureRootButtonAndPanel();
+      localizePanelText();
       wireRootDelegationOnce(I, doRender);
       runHLPositionNow();
       ensureLayoutResizeObserver(I, render, overlay);

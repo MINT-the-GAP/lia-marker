@@ -2,6 +2,62 @@ import { ROOT_WIN, ROOT_DOC, CONTENT_DOC } from "../dom/context";
 import type { Instance } from "../types";
 import { clamp, getViewport } from "./button";
 
+const HL_I18N: Record<string, { color: string; clear_all: string; clear_all_title: string }> = {
+  en: { color: "Color", clear_all: "Clear all", clear_all_title: "Remove all highlights" },
+  de: { color: "Farbe", clear_all: "Alles loschen", clear_all_title: "Alle Markierungen entfernen" },
+  fr: { color: "Couleur", clear_all: "Tout effacer", clear_all_title: "Supprimer tous les surlignages" },
+  es: { color: "Color", clear_all: "Borrar todo", clear_all_title: "Eliminar todos los resaltados" },
+  it: { color: "Colore", clear_all: "Cancella tutto", clear_all_title: "Rimuovi tutte le evidenziazioni" },
+  nl: { color: "Kleur", clear_all: "Alles verwijderen", clear_all_title: "Alle markeringen verwijderen" },
+  pt: { color: "Cor", clear_all: "Limpar tudo", clear_all_title: "Remover todos os destaques" },
+  pl: { color: "Kolor", clear_all: "Wyczysc wszystko", clear_all_title: "Usun wszystkie podswietlenia" },
+  tr: { color: "Renk", clear_all: "Hepsini temizle", clear_all_title: "Tum vurgulari kaldir" }
+};
+
+let __lastAppliedLang: string | null = null;
+
+function activeLang(): string | null {
+  const candidates = [
+    ROOT_DOC.documentElement.getAttribute("lang"),
+    ROOT_DOC.body.getAttribute("lang"),
+    CONTENT_DOC.documentElement.getAttribute("lang"),
+    CONTENT_DOC.body.getAttribute("lang"),
+    ROOT_DOC.documentElement.getAttribute("data-language"),
+    ROOT_DOC.body.getAttribute("data-language"),
+    CONTENT_DOC.documentElement.getAttribute("data-language"),
+    CONTENT_DOC.body.getAttribute("data-language")
+  ];
+
+  const raw = (candidates.find(v => !!(v && v.trim())) || "").trim().toLowerCase();
+  if (!raw) return null;
+
+  const base = raw.split("-")[0];
+  return HL_I18N[base] ? base : null;
+}
+
+export function localizePanelText(): void {
+  const lang = activeLang() || "en";
+  if (__lastAppliedLang === lang) return;
+
+  const dict = HL_I18N[lang] || HL_I18N.en;
+
+  const colorLabel = ROOT_DOC.getElementById("hl-color-label");
+  if (colorLabel) {
+    colorLabel.textContent = dict.color;
+    colorLabel.setAttribute("translate", "yes");
+  }
+
+  const clearBtn = ROOT_DOC.getElementById("hl-clear");
+  if (clearBtn) {
+    clearBtn.textContent = dict.clear_all;
+    clearBtn.setAttribute("title", dict.clear_all_title);
+    clearBtn.setAttribute("translate", "yes");
+    clearBtn.setAttribute("aria-label", dict.clear_all);
+  }
+
+  __lastAppliedLang = lang;
+}
+
 function measurePanel(panel: HTMLElement): { w: number; h: number } {
   const prevDisplay = panel.style.display;
   const prevVis     = panel.style.visibility;

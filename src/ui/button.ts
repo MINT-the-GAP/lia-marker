@@ -218,11 +218,11 @@ export function ensureRootButtonAndPanel(): void {
         </div>
         <hr class="hl-divider">
         <div>
-          <div class="hl-hint">Color</div>
+          <div class="hl-hint translate" id="hl-color-label" data-hl-i18n="color" translate="yes">Color</div>
           <div class="hl-colors" id="hl-colors"></div>
         </div>
         <hr class="hl-divider">
-        <button class="hl-clear" id="hl-clear" type="button" title="Remove all highlights">Clear all</button>
+        <button class="hl-clear translate" id="hl-clear" data-hl-i18n="clear_all" type="button" title="Remove all highlights" translate="yes">Clear all</button>
       </div>
     `;
     ROOT_DOC.body.appendChild(panel);
