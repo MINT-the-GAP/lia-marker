@@ -74,6 +74,82 @@ function ensureCSS(): void {
   ensureStyle(ROOT_DOC,    "lia-hl-root-style-v4",    cssRoot);
 }
 
+function joinMacroParts(parts: string[]): string {
+  let out = "";
+  for (const raw of parts) {
+    const part = raw ?? "";
+    if (!part) continue;
+    const sep = /^\s/.test(part) ? "," : ", ";
+    out += sep + part;
+  }
+  return out;
+}
+
+function normalizePackedChunks(rawChunks: string[]): string[] {
+  const chunks = rawChunks
+    .map((x) => x ?? "")
+    .filter((x) => x.length > 0)
+    .filter((x) => !/^@\d+$/.test(x));
+
+  if (!chunks.length) return [];
+
+  // If a base chunk exists, drop synthesized "baseN" / "base.N" variants.
+  const chunkSet = new Set(chunks);
+  const noShadowedIndexed = chunks.filter((part) => {
+    const m = part.match(/^(.*?)(\.?)(\d{1,3})$/);
+    if (!m) return true;
+    const baseDirect = m[1];
+    const baseWithDot = `${m[1]}.`;
+    return !chunkSet.has(baseDirect) && !chunkSet.has(baseWithDot);
+  });
+
+  // LiaScript can emit repeated indexed variants of the same chunk.
+  // Collapse patterns like "text.0|text.1|text.2" to a single "text".
+  const indexed = noShadowedIndexed.map((part) => {
+    const m = part.match(/^(.*?)(\.?)(\d{1,3})$/);
+    if (!m) return null;
+    const base = m[2] === "." ? `${m[1]}.` : m[1];
+    return { base, idx: Number(m[3]) };
+  });
+
+  if (indexed.length > 1 && indexed.every((x) => x !== null)) {
+    const concrete = indexed as Array<{ base: string; idx: number }>;
+    const baseSet = new Set(concrete.map((x) => x.base));
+    if (baseSet.size === 1) {
+      const sorted = concrete.map((x) => x.idx).sort((a, b) => a - b);
+      let consecutive = sorted[0] === 0;
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i] !== sorted[i - 1] + 1) {
+          consecutive = false;
+          break;
+        }
+      }
+      if (consecutive) return [concrete[0].base];
+    }
+  }
+
+  return noShadowedIndexed;
+}
+
+function normalizeMacroCommaArgs(): void {
+  const nodes = CONTENT_DOC.querySelectorAll<HTMLElement>(".lia-hl-target, .lia-hl-prefill");
+  nodes.forEach((el) => {
+    const carriers = Array.from(el.querySelectorAll<HTMLElement>("[data-hl-extra]"));
+    if (!carriers.length) return;
+
+    const parts: string[] = [];
+    for (const carrier of carriers) {
+      const packed = carrier.getAttribute("data-hl-extra") || "";
+      const chunks = normalizePackedChunks(packed.split("|"));
+      parts.push(...chunks);
+      carrier.remove();
+    }
+
+    const tail = joinMacroParts(parts);
+    if (tail) el.appendChild(CONTENT_DOC.createTextNode(tail));
+  });
+}
+
 // ─── Overlay ──────────────────────────────────────────────────────────────────
 function ensureOverlay(): HTMLElement {
   let overlay = CONTENT_DOC.getElementById("lia-hl-overlay");
@@ -158,6 +234,7 @@ try {
 // ─── Tick (boot + DOM observer) ───────────────────────────────────────────────
 function tick(): void {
   ensureCSS();
+  normalizeMacroCommaArgs();
   if (I.ticking) return;
   I.ticking = true;
 

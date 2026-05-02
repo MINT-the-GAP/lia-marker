@@ -10,21 +10,21 @@ script:   ./dist/index.js
 
 TextmarkerQuiz: <span class="hlq-proxy"><span class="hlq-msg"></span><button class="hlq-btn" type="button" data-hlq-act="check">Check</button><button class="hlq-btn" type="button" data-hlq-act="solve">Solve</button><span class="hlq-lia">[[ 1 ]]</span></span>
 
-markred:    <span class="lia-hl-target" data-hl-expected="red"    data-hl-quiz="default">@0</span>
-markblue:   <span class="lia-hl-target" data-hl-expected="blue"   data-hl-quiz="default">@0</span>
-markgreen:  <span class="lia-hl-target" data-hl-expected="green"  data-hl-quiz="default">@0</span>
-markyellow: <span class="lia-hl-target" data-hl-expected="yellow" data-hl-quiz="default">@0</span>
-markpink:   <span class="lia-hl-target" data-hl-expected="pink"   data-hl-quiz="default">@0</span>
-markorange: <span class="lia-hl-target" data-hl-expected="orange" data-hl-quiz="default">@0</span>
+markred:    <span class="lia-hl-target" data-hl-expected="red"    data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markblue:   <span class="lia-hl-target" data-hl-expected="blue"   data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markgreen:  <span class="lia-hl-target" data-hl-expected="green"  data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markyellow: <span class="lia-hl-target" data-hl-expected="yellow" data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markpink:   <span class="lia-hl-target" data-hl-expected="pink"   data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markorange: <span class="lia-hl-target" data-hl-expected="orange" data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
 
-mark: <span class="lia-hl-target" data-hl-expected="any" data-hl-quiz="default">@0</span>
+mark: <span class="lia-hl-target" data-hl-expected="any" data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
 
-markedred:    <span class="lia-hl-prefill" data-hl-prefill="red">@0</span>
-markedblue:   <span class="lia-hl-prefill" data-hl-prefill="blue">@0</span>
-markedgreen:  <span class="lia-hl-prefill" data-hl-prefill="green">@0</span>
-markedyellow: <span class="lia-hl-prefill" data-hl-prefill="yellow">@0</span>
-markedpink:   <span class="lia-hl-prefill" data-hl-prefill="pink">@0</span>
-markedorange: <span class="lia-hl-prefill" data-hl-prefill="orange">@0</span>
+markedred:    <span class="lia-hl-prefill" data-hl-prefill="red">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedblue:   <span class="lia-hl-prefill" data-hl-prefill="blue">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedgreen:  <span class="lia-hl-prefill" data-hl-prefill="green">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedyellow: <span class="lia-hl-prefill" data-hl-prefill="yellow">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedpink:   <span class="lia-hl-prefill" data-hl-prefill="pink">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedorange: <span class="lia-hl-prefill" data-hl-prefill="orange">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
 
 -->
 
@@ -80,7 +80,7 @@ Use `@mark(text)` to accept any color:
 
 ```markdown
 <div class="markerquiz">
-@mark(highlight this in any color)
+@mark(Highlight this, using any color.)
 @TextmarkerQuiz
 </div>
 ```
@@ -88,7 +88,7 @@ Use `@mark(text)` to accept any color:
 ---
 
 <div class="markerquiz">
-@mark(highlight this in any color)
+@mark(Highlight this, using any color.)
 @TextmarkerQuiz
 </div>
 
@@ -119,19 +119,19 @@ script:   https://cdn.jsdelivr.net/gh/MINT-the-GAP/lia-marker@0.0.1/dist/index.j
 
 TextmarkerQuiz: <span class="hlq-proxy"><span class="hlq-msg"></span><button class="hlq-btn" type="button" data-hlq-act="check">Check</button><button class="hlq-btn" type="button" data-hlq-act="solve">Solve</button><span class="hlq-lia">[[ 1 ]]</span></span>
 
-markred:    <span class="lia-hl-target" data-hl-expected="red"    data-hl-quiz="default">@0</span>
-markblue:   <span class="lia-hl-target" data-hl-expected="blue"   data-hl-quiz="default">@0</span>
-markgreen:  <span class="lia-hl-target" data-hl-expected="green"  data-hl-quiz="default">@0</span>
-markyellow: <span class="lia-hl-target" data-hl-expected="yellow" data-hl-quiz="default">@0</span>
-markpink:   <span class="lia-hl-target" data-hl-expected="pink"   data-hl-quiz="default">@0</span>
-markorange: <span class="lia-hl-target" data-hl-expected="orange" data-hl-quiz="default">@0</span>
+markred:    <span class="lia-hl-target" data-hl-expected="red"    data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markblue:   <span class="lia-hl-target" data-hl-expected="blue"   data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markgreen:  <span class="lia-hl-target" data-hl-expected="green"  data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markyellow: <span class="lia-hl-target" data-hl-expected="yellow" data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markpink:   <span class="lia-hl-target" data-hl-expected="pink"   data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markorange: <span class="lia-hl-target" data-hl-expected="orange" data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
 
-mark: <span class="lia-hl-target" data-hl-expected="any" data-hl-quiz="default">@0</span>
+mark: <span class="lia-hl-target" data-hl-expected="any" data-hl-quiz="default">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
 
-markedred:    <span class="lia-hl-prefill" data-hl-prefill="red">@0</span>
-markedblue:   <span class="lia-hl-prefill" data-hl-prefill="blue">@0</span>
-markedgreen:  <span class="lia-hl-prefill" data-hl-prefill="green">@0</span>
-markedyellow: <span class="lia-hl-prefill" data-hl-prefill="yellow">@0</span>
-markedpink:   <span class="lia-hl-prefill" data-hl-prefill="pink">@0</span>
-markedorange: <span class="lia-hl-prefill" data-hl-prefill="orange">@0</span>
+markedred:    <span class="lia-hl-prefill" data-hl-prefill="red">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedblue:   <span class="lia-hl-prefill" data-hl-prefill="blue">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedgreen:  <span class="lia-hl-prefill" data-hl-prefill="green">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedyellow: <span class="lia-hl-prefill" data-hl-prefill="yellow">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedpink:   <span class="lia-hl-prefill" data-hl-prefill="pink">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+markedorange: <span class="lia-hl-prefill" data-hl-prefill="orange">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
 ```
