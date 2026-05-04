@@ -75,12 +75,11 @@ function ensureCSS(): void {
 }
 
 function joinMacroParts(parts: string[]): string {
-  let out = "";
-  for (const raw of parts) {
-    const part = raw ?? "";
-    if (!part) continue;
-    const sep = /^\s/.test(part) ? "," : ", ";
-    out += sep + part;
+  const nonEmpty = parts.map(r => r ?? "").filter(p => p.length > 0);
+  if (!nonEmpty.length) return "";
+  let out = nonEmpty[0];
+  for (let i = 1; i < nonEmpty.length; i++) {
+    out += /^\s/.test(nonEmpty[i]) ? `,${nonEmpty[i]}` : `, ${nonEmpty[i]}`;
   }
   return out;
 }
@@ -98,9 +97,10 @@ function normalizePackedChunks(rawChunks: string[]): string[] {
   const noShadowedIndexed = chunks.filter((part) => {
     const m = part.match(/^(.*?)(\.?)(\d{1,3})$/);
     if (!m) return true;
-    const baseDirect = m[1];
-    const baseWithDot = `${m[1]}.`;
-    return !chunkSet.has(baseDirect) && !chunkSet.has(baseWithDot);
+    const baseDirect = m[1];           // e.g. "text" from "text0"
+    const baseDotted = `${m[1]}.`;     // e.g. "text." from "text.0"
+    // drop if the plain base or the dot-prefixed base already exists as its own chunk
+    return !chunkSet.has(baseDirect) && !chunkSet.has(baseDotted);
   });
 
   // LiaScript can emit repeated indexed variants of the same chunk.

@@ -4,14 +4,14 @@ import { clamp, getViewport } from "./button";
 
 const HL_I18N: Record<string, { color: string; clear_all: string; clear_all_title: string }> = {
   en: { color: "Color", clear_all: "Clear all", clear_all_title: "Remove all highlights" },
-  de: { color: "Farbe", clear_all: "Alles loschen", clear_all_title: "Alle Markierungen entfernen" },
+  de: { color: "Farbe", clear_all: "Alles löschen", clear_all_title: "Alle Markierungen entfernen" },
   fr: { color: "Couleur", clear_all: "Tout effacer", clear_all_title: "Supprimer tous les surlignages" },
   es: { color: "Color", clear_all: "Borrar todo", clear_all_title: "Eliminar todos los resaltados" },
   it: { color: "Colore", clear_all: "Cancella tutto", clear_all_title: "Rimuovi tutte le evidenziazioni" },
   nl: { color: "Kleur", clear_all: "Alles verwijderen", clear_all_title: "Alle markeringen verwijderen" },
   pt: { color: "Cor", clear_all: "Limpar tudo", clear_all_title: "Remover todos os destaques" },
-  pl: { color: "Kolor", clear_all: "Wyczysc wszystko", clear_all_title: "Usun wszystkie podswietlenia" },
-  tr: { color: "Renk", clear_all: "Hepsini temizle", clear_all_title: "Tum vurgulari kaldir" }
+  pl: { color: "Kolor", clear_all: "Wyczyść wszystko", clear_all_title: "Usuń wszystkie podświetlenia" },
+  tr: { color: "Renk", clear_all: "Hepsini temizle", clear_all_title: "Tüm vurguları kaldır" }
 };
 
 let __lastAppliedLang: string | null = null;
@@ -42,16 +42,12 @@ export function localizePanelText(): void {
   const dict = HL_I18N[lang] || HL_I18N.en;
 
   const colorLabel = ROOT_DOC.getElementById("hl-color-label");
-  if (colorLabel) {
-    colorLabel.textContent = dict.color;
-    colorLabel.setAttribute("translate", "yes");
-  }
+  if (colorLabel) colorLabel.textContent = dict.color;
 
   const clearBtn = ROOT_DOC.getElementById("hl-clear");
   if (clearBtn) {
     clearBtn.textContent = dict.clear_all;
     clearBtn.setAttribute("title", dict.clear_all_title);
-    clearBtn.setAttribute("translate", "yes");
     clearBtn.setAttribute("aria-label", dict.clear_all);
   }
 
