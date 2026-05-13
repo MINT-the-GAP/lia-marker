@@ -43,22 +43,124 @@ export function subsetRectsByTarget(userRects: Rect[], targetRects: Rect[], pad 
   return out;
 }
 
+function splitRangeOnWhitespace(range: Range): Range[] {
+  // Split a range into multiple ranges, one for each non-whitespace sequence.
+  // This allows "Highlight this, using any color." to match individual word markups.
+  
+  if (!range || range.collapsed) return [];
+  
+  const root = range.commonAncestorContainer.nodeType === 1
+    ? range.commonAncestorContainer as Element
+    : range.commonAncestorContainer.parentNode as Element;
+  
+  if (!root) return [range];
+  
+  const WS = (ch: string) =>
+    ch === " "  || ch === "\t" || ch === "\n" || ch === "\r" ||
+    ch === "\u00A0" || ch === "\u2009" || ch === "\u202F";
+  
+  const tw = CONTENT_DOC.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node: Node) {
+      try {
+        return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      } catch(e) {
+        return NodeFilter.FILTER_REJECT;
+      }
+    }
+  });
+  
+  const segs: { node: Node; s: number; e: number; text: string }[] = [];
+  let n: Node | null;
+  while ((n = tw.nextNode())) {
+    const text = n.nodeValue || "";
+    if (!text.length) continue;
+    
+    let s = 0;
+    let e = text.length;
+    
+    if (n === range.startContainer) s = range.startOffset;
+    if (n === range.endContainer)   e = range.endOffset;
+    
+    s = Math.max(0, Math.min(s, text.length));
+    e = Math.max(0, Math.min(e, text.length));
+    if (e <= s) continue;
+    
+    segs.push({ node: n, s, e, text: text.slice(s, e) });
+  }
+  
+  if (!segs.length) return [range];
+  
+  const results: Range[] = [];
+  let inNonWS = false;
+  let segStart: { node: Node; offset: number } | null = null;
+  
+  for (let si = 0; si < segs.length; si++) {
+    const seg = segs[si];
+    const t = seg.text;
+    
+    for (let ci = 0; ci < t.length; ci++) {
+      const isWS = WS(t[ci]);
+      
+      if (!isWS && !inNonWS) {
+        // Start of non-whitespace sequence
+        inNonWS = true;
+        segStart = { node: seg.node, offset: seg.s + ci };
+      } else if (isWS && inNonWS) {
+        // End of non-whitespace sequence
+        inNonWS = false;
+        if (segStart) {
+          const r = CONTENT_DOC.createRange();
+          try {
+            r.setStart(segStart.node, segStart.offset);
+            r.setEnd(seg.node, seg.s + ci);
+            if (!r.collapsed) results.push(r);
+          } catch(e) {}
+          segStart = null;
+        }
+      }
+    }
+  }
+  
+  // Handle final non-whitespace sequence
+  if (inNonWS && segStart) {
+    const lastSeg = segs[segs.length - 1];
+    const r = CONTENT_DOC.createRange();
+    try {
+      r.setStart(segStart.node, segStart.offset);
+      r.setEnd(lastSeg.node, lastSeg.s + lastSeg.text.length);
+      if (!r.collapsed) results.push(r);
+    } catch(e) {}
+  }
+  
+  return results.length > 0 ? results : [range];
+}
+
 export function collectTargetsInScope(scopeEl: Element | null): { el: Element; color: string; anchor: ReturnType<typeof nodeToPath> extends string ? any : any }[] {
   const root = scopeEl || CONTENT_DOC;
   const els = Array.from((root as Element | Document).querySelectorAll(".lia-hl-target[data-hl-expected]"));
 
-  return els.map(el => {
+  const result: { el: Element; color: string; anchor: any }[] = [];
+  
+  for (const el of els) {
     const color = el.getAttribute("data-hl-expected") || "yellow";
     const r = CONTENT_DOC.createRange();
     r.selectNodeContents(el);
-    const anchor = {
-      sp: nodeToPath(r.startContainer),
-      so: r.startOffset,
-      ep: nodeToPath(r.endContainer),
-      eo: r.endOffset
-    };
-    return { el, color, anchor };
-  });
+    
+    // Split the range into non-whitespace sequences
+    const splitRanges = splitRangeOnWhitespace(r);
+    
+    for (const range of splitRanges) {
+      const anchor = {
+        sp: nodeToPath(range.startContainer),
+        so: range.startOffset,
+        ep: nodeToPath(range.endContainer),
+        eo: range.endOffset
+      };
+      result.push({ el, color, anchor });
+    }
+  }
+  
+  return result;
 }
 
 

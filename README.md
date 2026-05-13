@@ -1,5 +1,5 @@
 <!--
-author:   MINT-the-GAP
+author:   MINT-the-GAP, Martin Lommatzsch, Jihad
 version:  0.0.1
 language: en
 edit: true
@@ -91,6 +91,7 @@ Use `@mark(text)` to accept any color:
 @mark(Highlight this, using any color.)
 @TextmarkerQuiz
 </div>
+
 
 ## Pre-filled Highlights
 
