@@ -37,10 +37,35 @@ function interSum(targetRects: Rect[], userRects: Rect[]): number {
 export function subsetRectsByTarget(userRects: Rect[], targetRects: Rect[], pad = HLQ_PAD): Rect[] {
   const out: Rect[] = [];
   const tExp = (targetRects || []).map(r => expandRect(r, pad));
+
   for (const ur of (userRects || [])) {
-    if (tExp.some(tr => interArea(tr, ur) > 0)) out.push(ur);
+    for (const tr of tExp) {
+      const x1 = Math.max(ur.x, tr.x);
+      const y1 = Math.max(ur.y, tr.y);
+      const x2 = Math.min(ur.x + ur.w, tr.x + tr.w);
+      const y2 = Math.min(ur.y + ur.h, tr.y + tr.h);
+      const w = x2 - x1;
+      const h = y2 - y1;
+      if (w > 0 && h > 0) out.push({ x: x1, y: y1, w, h });
+    }
   }
-  return out;
+
+  if (!out.length) return out;
+
+  const dedup = new Map<string, Rect>();
+  for (const r of out) {
+    const key = `${Math.round(r.x * 10)}|${Math.round(r.y * 10)}|${Math.round(r.w * 10)}|${Math.round(r.h * 10)}`;
+    if (!dedup.has(key)) dedup.set(key, r);
+  }
+
+  return mergeRectsToLines(Array.from(dedup.values()), {
+    yTol: 2,
+    gapTol: 1,
+    minW: 0.5,
+    minH: 0.5,
+    padX: 0,
+    padY: 0
+  });
 }
 
 function splitRangeOnWhitespace(range: Range): Range[] {
