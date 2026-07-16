@@ -222,6 +222,8 @@ export function ensureRootButtonAndPanel(): void {
           <div class="hl-colors" id="hl-colors"></div>
         </div>
         <hr class="hl-divider">
+        <button class="hl-explain translate" id="hl-tool-explain" data-hl-i18n="explain_word" type="button" title="Explain selected word" translate="yes">Explain Word</button>
+        <hr class="hl-divider">
         <button class="hl-clear translate" id="hl-clear" data-hl-i18n="clear_all" type="button" title="Remove all highlights" translate="yes">Clear all</button>
       </div>
     `;

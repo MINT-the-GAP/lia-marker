@@ -45,3 +45,108 @@
 .hlq-proxy textarea,
 .hlq-proxy select { display: none !important; }
 .hlq-proxy .hlq-msg { font-weight: 700; opacity: .85; }
+
+#lia-hl-explain-tip {
+  position: fixed !important;
+  z-index: var(--hl-z) !important;
+  width: min(620px, calc(100vw - 16px));
+  max-height: min(58vh, 420px);
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--hl-accent) 70%, #38d9ff);
+  background:
+    radial-gradient(120% 140% at 10% 0%, rgba(56, 217, 255, .10), rgba(56, 217, 255, 0) 42%),
+    linear-gradient(160deg, rgba(3, 12, 28, .94), rgba(5, 14, 30, .96));
+  color: rgba(239, 247, 255, .96);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .45);
+  backdrop-filter: blur(2px);
+  padding: 12px 14px;
+  display: none;
+}
+
+#lia-hl-explain-tip.is-open {
+  display: block;
+}
+
+.lia-hl-explain-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(92, 196, 255, .22);
+}
+
+#lia-hl-explain-word {
+  font-size: clamp(2rem, 3vw, 3.4rem);
+  line-height: 1.12;
+}
+
+#lia-hl-explain-close {
+  appearance: none;
+  border: 1px solid rgba(201, 227, 255, .28);
+  background: rgba(255, 255, 255, .07);
+  color: rgba(245, 250, 255, .95);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#lia-hl-explain-close:hover {
+  background: rgba(255, 255, 255, .14);
+  border-color: rgba(201, 227, 255, .4);
+}
+
+.lia-hl-explain-body {
+  white-space: pre-wrap;
+  line-height: 1.42;
+  margin-bottom: 10px;
+  font-size: clamp(1rem, 1.15vw, 1.7rem);
+}
+
+.lia-hl-explain-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+#lia-hl-explain-next {
+  appearance: none;
+  border: 1px solid rgba(117, 214, 255, .45);
+  background: rgba(56, 217, 255, .12);
+  color: rgba(220, 244, 255, .98);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#lia-hl-explain-next:hover {
+  background: rgba(56, 217, 255, .22);
+}
+
+#lia-hl-explain-count {
+  font-size: 12px;
+  color: rgba(191, 228, 255, .9);
+}
+
+.lia-hl-explain-source {
+  font-size: 12px;
+  color: rgba(112, 229, 255, .95);
+  text-decoration: underline;
+  opacity: .95;
+}

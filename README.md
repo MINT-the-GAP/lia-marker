@@ -57,6 +57,46 @@ https://github.com/MINT-the-GAP/lia-marker
           --{{0}}--
 A toolbar button appears in the navigation bar. Click it to open the color picker, then drag over text to highlight it. Click a highlight to remove it.
 
+## Explain Word Mode
+
+          --{{0}}--
+The panel includes an `Explain Word` button between color selection and `Clear all`. Activate it, then select exactly one word in the text. A tooltip appears with a short dictionary explanation.
+
+Language detection supports:
+
+- German
+Ich programmiere hier so rum und hoffe, dass meine Ergebnisse richtig sind.
+
+- English
+I'm just tinkering with the programming here, hoping my results are correct.
+
+- Spanish
+Estoy experimentando con la programación y espero que los resultados sean correctos.
+
+- French
+Je fais juste quelques essais avec la programmation et j'espère que mes résultats sont corrects.
+
+- Russian
+Я просто экспериментирую с программированием и надеюсь, что мои результаты верны.
+
+- Latin
+Modo cum programmatione hic ludo et spero mea eventa recta esse.
+
+Optional/heuristic support:
+
+- Czech
+Jen si hraju s programováním a doufám, že mé výsledky budou správné.
+
+- Polish
+Po prostu bawię się programowaniem i mam nadzieję, że wyniki są poprawne.
+
+### Data source, licensing, and privacy
+
+- Source: Wiktionary via Wikimedia API endpoints (`*.wiktionary.org/w/api.php`)
+- License: Dictionary content is from Wiktionary, typically under CC BY-SA (see source links in tooltip)
+- Privacy: Only the selected word is sent to Wikimedia for lookup. No user profile, account, or course progress data is transmitted by this plugin.
+- Cost: The integration uses publicly accessible Wikimedia endpoints without paid API keys.
+
 ## Marker Quiz Macros
 
           --{{0}}--

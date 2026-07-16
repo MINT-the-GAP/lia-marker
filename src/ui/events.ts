@@ -1,4 +1,4 @@
-import { ROOT_WIN, ROOT_DOC, CONTENT_DOC } from "../dom/context";
+import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC } from "../dom/context";
 import type { Instance } from "../types";
 import { applyUI, positionPanelSmart } from "./panel";
 import {
@@ -9,6 +9,66 @@ import { clearSlide } from "../highlight/store";
 import { recalcAllHighlights } from "../highlight/render";
 
 type RenderFn = () => void;
+
+function isWordChar(ch: string): boolean {
+  return /[A-Za-zÀ-ÖØ-öø-ÿĀ-ſƀ-ɏЀ-ӿ'’-]/.test(ch);
+}
+
+function wordRangeFromPoint(x: number, y: number): Range | null {
+  let node: Node | null = null;
+  let offset = 0;
+
+  const anyDoc = CONTENT_DOC as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+
+  if (typeof anyDoc.caretPositionFromPoint === "function") {
+    const pos = anyDoc.caretPositionFromPoint(x, y);
+    if (pos) {
+      node = pos.offsetNode;
+      offset = pos.offset;
+    }
+  } else if (typeof anyDoc.caretRangeFromPoint === "function") {
+    const r = anyDoc.caretRangeFromPoint(x, y);
+    if (r) {
+      node = r.startContainer;
+      offset = r.startOffset;
+    }
+  }
+
+  if (!node) return null;
+  if (node.nodeType !== 3) {
+    const el = node as Element;
+    const txt = el.firstChild;
+    if (!txt || txt.nodeType !== 3) return null;
+    node = txt;
+    offset = 0;
+  }
+
+  const textNode = node as Text;
+  const text = textNode.data || "";
+  if (!text) return null;
+
+  let i = Math.max(0, Math.min(offset, text.length - 1));
+  if (!isWordChar(text[i]) && i > 0 && isWordChar(text[i - 1])) i--;
+  if (!isWordChar(text[i])) return null;
+
+  let s = i;
+  let e = i + 1;
+  while (s > 0 && isWordChar(text[s - 1])) s--;
+  while (e < text.length && isWordChar(text[e])) e++;
+
+  const r = CONTENT_DOC.createRange();
+  try {
+    r.setStart(textNode, s);
+    r.setEnd(textNode, e);
+    if (r.collapsed) return null;
+    return r;
+  } catch (e) {
+    return null;
+  }
+}
 
 function runHLPositionNow(I: Instance): void {
   detectNavStack();
@@ -107,6 +167,7 @@ export function wireUIOnce(I: Instance, renderFn: RenderFn): void {
 
   const toolMark  = ROOT_DOC.getElementById("hl-tool-mark");
   const toolErase = ROOT_DOC.getElementById("hl-tool-erase");
+  const toolExplain = ROOT_DOC.getElementById("hl-tool-explain");
   const clearBtn  = ROOT_DOC.getElementById("hl-clear");
 
   toolMark?.addEventListener("click", () => {
@@ -114,6 +175,9 @@ export function wireUIOnce(I: Instance, renderFn: RenderFn): void {
   });
   toolErase?.addEventListener("click", () => {
     I.state.tool = "erase"; I.state.panelOpen = false; applyUI(I);
+  });
+  toolExplain?.addEventListener("click", () => {
+    I.state.tool = "explain"; I.state.panelOpen = false; applyUI(I);
   });
 
   clearBtn?.addEventListener("click", () => {
@@ -150,8 +214,11 @@ export function wireContentEvents(
   I: Instance,
   renderFn: RenderFn,
   addHighlightFn: () => void,
+  explainSelectionFn: () => void,
   eraseAtPointFn: (x: number, y: number) => boolean
 ): void {
+  let markSingleTimer: number | null = null;
+
   CONTENT_DOC.addEventListener("mouseup", (e) => {
     const isForeign = !!(e.target as Element)?.closest?.([
       "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
@@ -160,8 +227,68 @@ export function wireContentEvents(
     if (isForeign) return;
     if (!I.state.active) return;
     if (I.state.panelOpen) { I.state.panelOpen = false; applyUI(I); }
+    if (I.state.tool === "mark") {
+      const clickDetail = (e as MouseEvent).detail || 0;
+      // Let dblclick handler own the double-click path to avoid racing selection finalization.
+      if (clickDetail >= 2) return;
+
+      if (markSingleTimer !== null) {
+        ROOT_WIN.clearTimeout(markSingleTimer);
+        markSingleTimer = null;
+      }
+
+      // Delay single-click/drag commit briefly so a possible second click can cancel it.
+      markSingleTimer = ROOT_WIN.setTimeout(() => {
+        markSingleTimer = null;
+        addHighlightFn();
+        ROOT_WIN.requestAnimationFrame(() => {
+          addHighlightFn();
+        });
+      }, 220);
+      return;
+    }
+    if (I.state.tool === "explain") {
+      // Selection is often not finalized yet during capture-phase mouseup.
+      // Defer once to next frame and once via short timeout for reliability.
+      ROOT_WIN.requestAnimationFrame(() => {
+        explainSelectionFn();
+        ROOT_WIN.setTimeout(() => { explainSelectionFn(); }, 90);
+      });
+      return;
+    }
+  }, true);
+
+  CONTENT_DOC.addEventListener("dblclick", (e) => {
+    const isForeign = !!(e.target as Element)?.closest?.([
+      "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
+      ".lia-tool-menu", ".lia-annot-btn", ".lia-annot-toolbar"
+    ].join(","));
+    if (isForeign) return;
+    if (!I.state.active) return;
     if (I.state.tool !== "mark") return;
+
+    (I as any).__markDblClickPendingUntil = Date.now() + 500;
+
+    if (markSingleTimer !== null) {
+      ROOT_WIN.clearTimeout(markSingleTimer);
+      markSingleTimer = null;
+    }
+
+    const forced = wordRangeFromPoint((e as MouseEvent).clientX, (e as MouseEvent).clientY);
+    if (forced) {
+      const sel = CONTENT_WIN.getSelection ? CONTENT_WIN.getSelection() : null;
+      try {
+        sel?.removeAllRanges();
+        sel?.addRange(forced);
+      } catch (err) {}
+    }
+
+    // Dblclick fires after the browser has finalized word selection.
     addHighlightFn();
+    ROOT_WIN.requestAnimationFrame(() => {
+      addHighlightFn();
+      ROOT_WIN.setTimeout(() => { addHighlightFn(); }, 60);
+    });
   }, true);
 
   CONTENT_DOC.addEventListener("pointerdown", (e) => {

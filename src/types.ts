@@ -23,7 +23,7 @@ export interface HighlightItem {
 export interface ToolState {
   active: boolean;
   panelOpen: boolean;
-  tool: "mark" | "erase";
+  tool: "mark" | "erase" | "explain";
   color: HLColor;
 }
 

@@ -2,16 +2,24 @@ import { ROOT_WIN, ROOT_DOC, CONTENT_DOC } from "../dom/context";
 import type { Instance } from "../types";
 import { clamp, getViewport } from "./button";
 
-const HL_I18N: Record<string, { color: string; clear_all: string; clear_all_title: string }> = {
-  en: { color: "Color", clear_all: "Clear all", clear_all_title: "Remove all highlights" },
-  de: { color: "Farbe", clear_all: "Alles löschen", clear_all_title: "Alle Markierungen entfernen" },
-  fr: { color: "Couleur", clear_all: "Tout effacer", clear_all_title: "Supprimer tous les surlignages" },
-  es: { color: "Color", clear_all: "Borrar todo", clear_all_title: "Eliminar todos los resaltados" },
-  it: { color: "Colore", clear_all: "Cancella tutto", clear_all_title: "Rimuovi tutte le evidenziazioni" },
-  nl: { color: "Kleur", clear_all: "Alles verwijderen", clear_all_title: "Alle markeringen verwijderen" },
-  pt: { color: "Cor", clear_all: "Limpar tudo", clear_all_title: "Remover todos os destaques" },
-  pl: { color: "Kolor", clear_all: "Wyczyść wszystko", clear_all_title: "Usuń wszystkie podświetlenia" },
-  tr: { color: "Renk", clear_all: "Hepsini temizle", clear_all_title: "Tüm vurguları kaldır" }
+const HL_I18N: Record<string, { color: string; clear_all: string; clear_all_title: string; explain_word: string; explain_word_title: string }> = {
+  en: { color: "Color", clear_all: "Clear all", clear_all_title: "Remove all highlights", explain_word: "Explain Word", explain_word_title: "Explain selected word" },
+  de: { color: "Farbe", clear_all: "Alles löschen", clear_all_title: "Alle Markierungen entfernen", explain_word: "Wort erklären", explain_word_title: "Markiertes Wort erklären" },
+  cs: { color: "Barva", clear_all: "Vymazat vše", clear_all_title: "Odstranit všechna zvýraznění", explain_word: "Vysvětlit slovo", explain_word_title: "Vysvětlit vybrané slovo" },
+  fr: { color: "Couleur", clear_all: "Tout effacer", clear_all_title: "Supprimer tous les surlignages", explain_word: "Expliquer le mot", explain_word_title: "Expliquer le mot sélectionné" },
+  es: { color: "Color", clear_all: "Borrar todo", clear_all_title: "Eliminar todos los resaltados", explain_word: "Explicar palabra", explain_word_title: "Explicar la palabra seleccionada" },
+  it: { color: "Colore", clear_all: "Cancella tutto", clear_all_title: "Rimuovi tutte le evidenziazioni", explain_word: "Spiega parola", explain_word_title: "Spiega la parola selezionata" },
+  la: { color: "Color", clear_all: "Omnia delere", clear_all_title: "Omnes notationes removere", explain_word: "Vocabulum explicare", explain_word_title: "Vocabulum selectum explicare" },
+  nl: { color: "Kleur", clear_all: "Alles verwijderen", clear_all_title: "Alle markeringen verwijderen", explain_word: "Woord uitleggen", explain_word_title: "Geselecteerd woord uitleggen" },
+  pt: { color: "Cor", clear_all: "Limpar tudo", clear_all_title: "Remover todos os destaques", explain_word: "Explicar palavra", explain_word_title: "Explicar a palavra selecionada" },
+  pl: { color: "Kolor", clear_all: "Wyczyść wszystko", clear_all_title: "Usuń wszystkie podświetlenia", explain_word: "Wyjaśnij słowo", explain_word_title: "Wyjaśnij zaznaczone słowo" },
+  ru: { color: "Цвет", clear_all: "Очистить всё", clear_all_title: "Удалить все выделения", explain_word: "Объяснить слово", explain_word_title: "Объяснить выбранное слово" },
+  tr: { color: "Renk", clear_all: "Hepsini temizle", clear_all_title: "Tüm vurguları kaldır", explain_word: "Kelimeyi açıkla", explain_word_title: "Seçilen kelimeyi açıkla" }
+};
+
+const LANG_ALIAS: Record<string, string> = {
+  cz: "cs",
+  pn: "pl"
 };
 
 let __lastAppliedLang: string | null = null;
@@ -31,7 +39,8 @@ function activeLang(): string | null {
   const raw = (candidates.find(v => !!(v && v.trim())) || "").trim().toLowerCase();
   if (!raw) return null;
 
-  const base = raw.split("-")[0];
+  const baseRaw = raw.split("-")[0];
+  const base = LANG_ALIAS[baseRaw] || baseRaw;
   return HL_I18N[base] ? base : null;
 }
 
@@ -49,6 +58,13 @@ export function localizePanelText(): void {
     clearBtn.textContent = dict.clear_all;
     clearBtn.setAttribute("title", dict.clear_all_title);
     clearBtn.setAttribute("aria-label", dict.clear_all);
+  }
+
+  const explainBtn = ROOT_DOC.getElementById("hl-tool-explain");
+  if (explainBtn) {
+    explainBtn.textContent = dict.explain_word;
+    explainBtn.setAttribute("title", dict.explain_word_title);
+    explainBtn.setAttribute("aria-label", dict.explain_word);
   }
 
   __lastAppliedLang = lang;
@@ -142,8 +158,10 @@ export function applyUI(I: Instance): void {
 
   const toolMark  = ROOT_DOC.getElementById("hl-tool-mark");
   const toolErase = ROOT_DOC.getElementById("hl-tool-erase");
+  const toolExplain = ROOT_DOC.getElementById("hl-tool-explain");
   if (toolMark)  toolMark.classList.toggle("active",  I.state.tool === "mark");
   if (toolErase) toolErase.classList.toggle("active", I.state.tool === "erase");
+  if (toolExplain) toolExplain.classList.toggle("active", I.state.tool === "explain");
 
   const dot = ROOT_DOC.getElementById("lia-hl-dot") as HTMLElement | null;
   if (dot) {

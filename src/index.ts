@@ -12,6 +12,7 @@ import { ensureRootButtonAndPanel, positionHLButton, detectNavStack } from "./ui
 import { positionPanelSmart, ensureSwatchesOnce, applyUI, localizePanelText } from "./ui/panel";
 import { wireRootDelegationOnce, wireUIOnce, wireContentEvents } from "./ui/events";
 import { wireHLQEvents } from "./quiz/events";
+import { explainSelectionWord } from "./explain";
 import { layoutSignature } from "./highlight/render";
 import { getActiveSlideId, slideIdFromNode, getSlideCandidates } from "./slides";
 import { packedRectsFromRange } from "./dom/rects";
@@ -189,6 +190,7 @@ wireContentEvents(
   I,
   doRender,
   () => addHighlightFromSelection(I, doRender),
+  () => explainSelectionWord(),
   (x: number, y: number) => {
     const hit = findUserHighlightAtPoint(I, x, y);
     if (hit) { I.HL = I.HL.filter(h => h.id !== hit.id); }
