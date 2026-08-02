@@ -1,4 +1,4 @@
-import { ROOT_DOC, CONTENT_DOC, CONTENT_WIN } from "../dom/context";
+import { ROOT_WIN, ROOT_DOC, CONTENT_DOC, CONTENT_WIN } from "../dom/context";
 import { trimRangeWhitespace } from "../dom/ranges";
 
 type ExplainLang = "de" | "en" | "es" | "fr" | "ru" | "la" | "cs" | "pl";

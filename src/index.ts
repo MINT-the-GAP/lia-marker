@@ -12,6 +12,7 @@ import { ensureRootButtonAndPanel, positionHLButton, detectNavStack } from "./ui
 import { positionPanelSmart, ensureSwatchesOnce, applyUI, localizePanelText } from "./ui/panel";
 import { wireRootDelegationOnce, wireUIOnce, wireContentEvents } from "./ui/events";
 import { wireHLQEvents } from "./quiz/events";
+import { ensureMarkerQuizResolutions } from "./quiz/resolution";
 import { explainSelectionWord } from "./explain";
 import { layoutSignature } from "./highlight/render";
 import { getActiveSlideId, slideIdFromNode, getSlideCandidates } from "./slides";
@@ -32,9 +33,11 @@ const DOC_ID =
 const prev: Instance | undefined = REG.instances[DOC_ID];
 if (prev?.__alive) {
   try { prev.moSlides?.disconnect(); } catch(e){}
+  try { prev.__cleanupResolutions?.(); } catch(e){}
   try { prev.__alive = false; } catch(e){}
   try { prev.moDock?.disconnect(); } catch(e){}
   try { prev.moTheme?.disconnect(); } catch(e){}
+  try { prev.moResolutions?.disconnect(); } catch(e){}
   try { prev.roLayout?.disconnect(); } catch(e){}
   try { if (prev.__layoutTimer) ROOT_WIN.clearInterval(prev.__layoutTimer as number); } catch(e){}
   try { CONTENT_DOC.getElementById("lia-hl-overlay")?.remove(); } catch(e){}
@@ -49,6 +52,7 @@ const I: Instance = REG.instances[DOC_ID] = {
   nextId:        1,
   moDock:        null,
   moTheme:       null,
+  moResolutions: null,
   moSlides:      null,
   roLayout:      null,
   roNodes:       new Set<Element>(),
@@ -237,11 +241,13 @@ try {
 function tick(): void {
   ensureCSS();
   normalizeMacroCommaArgs();
+  ensureMarkerQuizResolutions(I);
   if (I.ticking) return;
   I.ticking = true;
 
   ROOT_WIN.requestAnimationFrame(() => {
     try {
+      ensureMarkerQuizResolutions(I);
       ensureRootButtonAndPanel();
       localizePanelText();
       wireRootDelegationOnce(I, doRender);

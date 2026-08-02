@@ -2,6 +2,7 @@ import { CONTENT_DOC } from "../dom/context";
 import type { Instance } from "../types";
 import { evalScope } from "./eval";
 import { solveScope } from "./solve";
+import { revealMarkerQuizResolution } from "./resolution";
 
 function isForeignToolUi(node: Node | null): boolean {
   const el = (node && node.nodeType === 1) ? node as Element : (node as any)?.parentElement as Element | null;
@@ -132,6 +133,7 @@ function handleHLQAction(
         : "No targets found."
     );
     setLiaValue(input, r.pass ? 1 : 0);
+    if (r.pass) revealMarkerQuizResolution(I, scopeEl);
     return;
   }
 
@@ -139,6 +141,7 @@ function handleHLQAction(
     solveScope(I, scopeEl, renderFn);
     setProxyMsg(proxy, "Solution displayed.");
     setLiaValue(input, 1);
+    revealMarkerQuizResolution(I, scopeEl);
     return;
   }
 }

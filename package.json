@@ -1,12 +1,19 @@
 {
   "name": "lia-marker",
-  "version": "0.0.1",
+  "version": "1.1.0",
   "description": "LiaScript Textmarker plugin — interactive text highlighting and marker-quiz for LiaScript courses",
   "scripts": {
-    "build": "parcel build src/index.ts --dist-dir dist --no-scope-hoist"
+    "build": "parcel build src/index.ts --dist-dir dist --no-scope-hoist",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:e2e",
+    "pretest:e2e": "npm run typecheck && npm run build",
+    "test:e2e": "playwright test --project=chromium --project=firefox --project=webkit",
+    "pretest:browsers": "npm run typecheck && npm run build",
+    "test:browsers": "playwright test --project=chromium --project=firefox --project=webkit --project=chrome --project=edge"
   },
   "devDependencies": {
     "@parcel/transformer-inline-string": "^2.16.4",
+    "@playwright/test": "^1.62.1",
     "parcel": "^2.13.3",
     "typescript": "^5.8.3"
   }

@@ -35,6 +35,7 @@ export interface Instance {
   nextId: number;
   moDock: MutationObserver | null;
   moTheme: MutationObserver | null;
+  moResolutions: MutationObserver | null;
   moSlides: MutationObserver | null;
   roLayout: ResizeObserver | null;
   roNodes: Set<Element>;
@@ -46,5 +47,7 @@ export interface Instance {
   __layoutSig?: string;
   __layoutTimer?: number;
   __prefillKeys?: Set<string>;
+  __revealedSolutions?: Set<string>;
+  __cleanupResolutions?: () => void;
   [key: string]: unknown;
 }

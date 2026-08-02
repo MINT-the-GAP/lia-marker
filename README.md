@@ -1,6 +1,6 @@
 <!--
 author:   MINT-the-GAP, Martin Lommatzsch, Jihad Hyadi
-version:  1.0.1
+version:  1.1.0
 language: en
 edit: true
 narrator: US English Female
@@ -47,6 +47,10 @@ https://github.com/MINT-the-GAP/lia-marker
    or pin to a specific version:
 
    `import: https://raw.githubusercontent.com/MINT-the-GAP/lia-marker/0.0.1/README.md`
+
+   The exterior solution-block syntax documented below requires `main` until
+   a newer release tag is published. The pinned `0.0.1` import remains
+   available for courses that require the original behavior.
 
 2. Copy the definitions into your project
 
@@ -102,6 +106,8 @@ Po prostu bawię się programowaniem i mam nadzieję, że wyniki są poprawne.
           --{{0}}--
 Use `@markCOLOR(text)` to define which text a student must highlight in a specific color. Pair with `@TextmarkerQuiz` to add Check / Solve buttons.
 
+The quiz can be used without an explanatory solution:
+
 ```markdown
 <div class="markerquiz">
 @markred(Katze) @markblue(Schritt)
@@ -115,6 +121,34 @@ Use `@markCOLOR(text)` to define which text a student must highlight in a specif
 @markred(Katze) @markblue(Schritt)
 @TextmarkerQuiz
 </div>
+
+Or add a LiaScript-style explanatory solution after the closing `</div>`.
+It stays hidden after a failed check and appears only after a correct check or
+after the learner selects Resolve:
+
+```markdown
+<div class="markerquiz">
+@markred(Katze) @markblue(Schritt)
+@TextmarkerQuiz
+</div>
+**************
+Musterlösungstext
+**************
+```
+
+---
+
+<div class="markerquiz">
+@markred(Katze) @markblue(Schritt)
+@TextmarkerQuiz
+</div>
+**************
+Musterlösungstext
+**************
+
+The optional solution works with every target macro:
+`@markred`, `@markblue`, `@markgreen`, `@markyellow`, `@markpink`,
+`@markorange`, and the any-color variant `@mark`.
 
 Use `@mark(text)` to accept any color:
 
@@ -156,7 +190,7 @@ Use `@markedCOLOR(text)` to show text pre-highlighted (read-only, for demonstrat
 If you prefer not to use `import:`, copy the following block directly into the header of your LiaScript document.
 
 ```markdown
-script:   https://cdn.jsdelivr.net/gh/MINT-the-GAP/lia-marker@0.0.1/dist/index.js
+script:   https://raw.githubusercontent.com/MINT-the-GAP/lia-marker/main/dist/index.js
 
 TextmarkerQuiz: <span class="hlq-proxy"><span class="hlq-msg"></span><button class="hlq-btn" type="button" data-hlq-act="check">Check</button><button class="hlq-btn" type="button" data-hlq-act="solve">Solve</button><span class="hlq-lia">[[ 1 ]]</span></span>
 
@@ -175,4 +209,21 @@ markedgreen:  <span class="lia-hl-prefill" data-hl-prefill="green">@0<span hidde
 markedyellow: <span class="lia-hl-prefill" data-hl-prefill="yellow">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
 markedpink:   <span class="lia-hl-prefill" data-hl-prefill="pink">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
 markedorange: <span class="lia-hl-prefill" data-hl-prefill="orange">@0<span hidden data-hl-extra="@1|@2|@3|@4|@5|@6|@7|@8|@9"></span></span>
+```
+
+## Tests
+
+`npm test` runs the type-check, rebuilds `dist/index.js`, and executes the
+suite in Chromium, Firefox, and WebKit. `npm run test:browsers` additionally
+uses installed Google Chrome and Microsoft Edge.
+
+The functional tests normally intercept the public Raw-GitHub URLs with the
+current working tree, so URL resolution is identical without requiring a push.
+After publishing a commit, run the same suite against that immutable online
+revision:
+
+```powershell
+$env:LIA_MARKER_TEST_REF = "<commit-sha>"
+$env:LIA_MARKER_TEST_LIVE = "1"
+npm run test:browsers
 ```

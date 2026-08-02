@@ -10,6 +10,11 @@
 .hlq-proxy .hlq-msg { display: none !important; }
 .hlq-proxy .hlq-lia { display: contents; }
 
+.hlq-resolution[hidden],
+.hlq-resolution__delimiter {
+  display: none !important;
+}
+
 .lia-hlq-debug .hlq-proxy .hlq-btn,
 .lia-hlq-debug .hlq-proxy .hlq-msg { display: inline-flex !important; }
 .lia-hlq-debug .lia-hl-target {
