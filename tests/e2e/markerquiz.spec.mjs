@@ -10,10 +10,42 @@ const rawBase = `https://raw.githubusercontent.com/MINT-the-GAP/lia-marker/${rem
 const readmeUrl = `${rawBase}/README.md`;
 const bundleUrl = `${rawBase}/dist/index.js`;
 const useLiveRemote = process.env.LIA_MARKER_TEST_LIVE === "1";
+const dynFlexUrl =
+  "https://raw.githubusercontent.com/MINT-the-GAP/lia-DynFlex/refs/heads/main/README.md";
+const timerUrl =
+  "https://raw.githubusercontent.com/MINT-the-GAP/lia-timer/refs/heads/main/README.md";
+const lootUrl =
+  "https://raw.githubusercontent.com/MINT-the-GAP/lia-loot/refs/heads/main/README.md";
+const freezeUrl =
+  "https://raw.githubusercontent.com/MINT-the-GAP/lia-freeze-v2/refs/heads/main/README.md";
 const weeklyTaskImports = [
-  "https://raw.githubusercontent.com/MINT-the-GAP/lia-DynFlex/refs/heads/main/README.md",
-  "https://raw.githubusercontent.com/MINT-the-GAP/lia-timer/refs/heads/main/README.md",
+  dynFlexUrl,
+  timerUrl,
 ];
+const exactLootWeeklyTaskBody = `
+# Exakter Wochenaufgaben-Block
+
+<section class=dynFlex>
+
+<div class=flex-child>
+
+**$a)\\\\;\\\\;$**
+<div class=markerquiz>
+@markred(Die neugierige Schülerin) @markblue(entdeckt) @markgreen(eine alte Schachtel).
+
+<!-- data-solution-timer="120s" data-solution-timer-start="oncheck" data-solution-timer-badge="off" -->
+@TextmarkerQuiz
+</div>
+*****************
+@Energiekiste
+@Schatztruhe(markerquiz)
+*****************
+
+@ADetails(BE=3;Satzglieder)
+
+</div>
+</section>
+`;
 
 function makeCourse(body, imports = []) {
   return `<!--
@@ -24,6 +56,21 @@ ${imports.map((url) => `import: ${url}`).join("\n")}
 -->
 
 ${body}
+`;
+}
+
+function makeExactLootWeeklyTaskCourse() {
+  return `<!--
+version: 1.0.0
+language: de
+import: ${dynFlexUrl}
+import: ${timerUrl}
+import: ${readmeUrl}
+import: ${freezeUrl}
+import: ${lootUrl}
+-->
+
+${exactLootWeeklyTaskBody}
 `;
 }
 
@@ -122,6 +169,51 @@ async function markTarget(page, expectedColor, actualColor, expectedCount) {
     const instance = Object.values(registry.instances || {}).find((item) => item.__alive);
     return instance?.HL.filter((item) => item.kind === "user").length || 0;
   })).toBe(expectedCount);
+}
+
+async function markWholeTarget(page, expectedColor, actualColor, expectedCount) {
+  const target = page.locator(
+    `.lia-hl-target[data-hl-expected="${expectedColor}"]`,
+  ).first();
+  await expect(target).toBeVisible();
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await target.evaluate((element, color) => {
+      const registry = window.__LIA_TEXTMARKER_REG_V4__;
+      const instance = Object.values(registry.instances || {})
+        .find((item) => item.__alive);
+      if (!instance) throw new Error("Textmarker instance not available");
+
+      instance.state.active = true;
+      instance.state.panelOpen = false;
+      instance.state.tool = "mark";
+      instance.state.color = color;
+
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      element.dispatchEvent(new MouseEvent("mouseup", {
+        bubbles: true,
+        cancelable: true,
+        detail: 1,
+        view: window,
+      }));
+    }, actualColor);
+
+    try {
+      await expect.poll(() => page.evaluate(() => {
+        const registry = window.__LIA_TEXTMARKER_REG_V4__;
+        const instance = Object.values(registry.instances || {})
+          .find((item) => item.__alive);
+        return instance?.HL.filter((item) => item.kind === "user").length || 0;
+      }), { timeout: 3_000 }).toBe(expectedCount);
+      return;
+    } catch (error) {
+      if (attempt === 2) throw error;
+    }
+  }
 }
 
 test("loads the published GitHub template and bundle", async ({ page }) => {
@@ -294,6 +386,237 @@ test("reveals a weekly-task solution element after a correct Check", async ({ pa
   await markTarget(page, "green", "green", 1);
   await page.locator(".lia-quiz__check").first().click();
   await expect(solution).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("keeps relocated Loot chests inside an exact weekly-task solution", async ({ page }) => {
+  const { errors } = await openSource(page, makeExactLootWeeklyTaskCourse());
+  const movedChest = page.locator(
+    '[data-loot-chest-portal][data-loot-chest-location="markerquiz"]',
+  );
+  const energyButton = page.locator(
+    '[data-loot-chest-button][data-loot-chest-reward="energy"]',
+  );
+  const details = page.locator(
+    "lia-adetails[data-adetails='BE=3;Satzglieder']",
+  );
+  const metadata = page.locator(".hlq-metadata-artifact");
+
+  await expect(details).toHaveCount(1);
+  await expect(details).toBeVisible();
+  await expect(metadata).toHaveCount(1);
+  await expect(metadata).toBeHidden();
+  await expect(page.locator(".hlq-resolution")).toHaveCount(0);
+  await expect(page.locator(".lia-quiz__solution")).toHaveCount(0);
+  await expect(energyButton).toHaveCount(0);
+  await expect(movedChest).toHaveCount(1);
+  await expect(movedChest).toBeHidden();
+  await expect(movedChest).toHaveClass(/\bhlq-deferred-loot-portal\b/);
+
+  await page.locator(".lia-quiz__check").first().click();
+  await expect(page.locator(".lia-quiz")).toHaveClass(/\bopen\b/);
+  await expect(page.locator(".lia-quiz__solution")).toHaveCount(0);
+  await expect(energyButton).toHaveCount(0);
+  await expect(movedChest).toBeHidden();
+
+  await page.locator(".lia-quiz__resolve").first().click();
+  await expect(page.locator(".lia-quiz")).toHaveClass(/\bresolved\b/);
+  await expect(page.locator(".lia-quiz__solution")).toBeVisible();
+  await expect(energyButton).toBeVisible();
+  await expect(movedChest).toBeVisible();
+  await expect(movedChest).not.toHaveClass(/\bhlq-deferred-loot-portal\b/);
+  expect(errors).toEqual([]);
+});
+
+test("reveals both exact Loot solution chests after a correct Check", async ({ page }) => {
+  const { errors } = await openSource(page, makeExactLootWeeklyTaskCourse());
+  const movedChest = page.locator(
+    '[data-loot-chest-portal][data-loot-chest-location="markerquiz"]',
+  );
+  const energyButton = page.locator(
+    '[data-loot-chest-button][data-loot-chest-reward="energy"]',
+  );
+
+  await expect(movedChest).toHaveCount(1);
+  await expect(movedChest).toBeHidden();
+  await expect(energyButton).toHaveCount(0);
+  await markWholeTarget(page, "red", "red", 1);
+  await markTarget(page, "blue", "blue", 2);
+  await markWholeTarget(page, "green", "green", 3);
+  await expect(movedChest).toBeHidden();
+  await expect(movedChest).toHaveClass(/\bhlq-deferred-loot-portal\b/);
+  await expect(energyButton).toHaveCount(0);
+  await page.locator(".lia-quiz__check").first().click();
+
+  await expect(page.locator(".lia-quiz")).toHaveClass(/\bsolved\b/);
+  await expect(page.locator(".lia-quiz__solution")).toBeVisible();
+  await expect(energyButton).toBeVisible();
+  await expect(movedChest).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("keeps a markerquiz Loot chest outside a solution immediately available", async ({ page }) => {
+  const { errors } = await openSource(page, makeCourse(`
+# Direkte Truhe
+
+<div class="markerquiz">
+@markred(Sofort)
+@TextmarkerQuiz
+</div>
+
+@Schatztruhe(markerquiz)
+`, [lootUrl]));
+  const movedChest = page.locator(
+    '[data-loot-chest-portal][data-loot-chest-location="markerquiz"]',
+  );
+
+  await expect(movedChest).toHaveCount(1);
+  await expect(movedChest).toBeVisible();
+  await expect(movedChest).not.toHaveClass(/\bhlq-deferred-loot-portal\b/);
+  expect(errors).toEqual([]);
+});
+
+test("separates identical immediate and solution Loot portals by source ID", async ({ page }) => {
+  const { errors } = await openSource(page, makeCourse(`
+# Zwei identische Truhen
+
+@Schatztruhe(markerquiz)
+
+<div class="markerquiz">
+@markblue(Getrennt)
+@TextmarkerQuiz
+</div>
+**************
+@Schatztruhe(markerquiz)
+**************
+`, [lootUrl]));
+  const portals = page.locator(
+    '[data-loot-chest-portal][data-loot-chest-location="markerquiz"]',
+  );
+  const deferred = page.locator(
+    '[data-loot-chest-portal][data-loot-chest-location="markerquiz"].hlq-deferred-loot-portal',
+  );
+  const immediate = page.locator(
+    '[data-loot-chest-portal][data-loot-chest-location="markerquiz"]:not(.hlq-deferred-loot-portal)',
+  );
+
+  await expect(portals).toHaveCount(2);
+  await expect(deferred).toHaveCount(1);
+  await expect(immediate).toHaveCount(1);
+  await expect(immediate).toBeVisible();
+  await expect(deferred).toBeHidden();
+
+  await page.locator(".lia-quiz__resolve").click();
+  await expect(page.locator(".lia-quiz")).toHaveClass(/\bresolved\b/);
+  await expect(portals).toHaveCount(2);
+  await expect(page.locator(".hlq-deferred-loot-portal")).toHaveCount(0);
+  await expect(portals.nth(0)).toBeVisible();
+  await expect(portals.nth(1)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("reveals identical solution Loot portals only with their own quiz", async ({ page }) => {
+  const { errors } = await openSource(page, makeCourse(`
+# Zwei getrennte Lösungstruhen
+
+<div class="markerquiz">
+@markred(Erste)
+@TextmarkerQuiz
+</div>
+**************
+@Schatztruhe(markerquiz)
+**************
+
+Trennung.
+
+<div class="markerquiz">
+@markblue(Zweite)
+@TextmarkerQuiz
+</div>
+**************
+@Schatztruhe(markerquiz)
+**************
+`, [lootUrl]));
+  const scopes = page.locator(".markerquiz");
+  const portals = page.locator(
+    '[data-loot-chest-portal][data-loot-chest-location="markerquiz"]',
+  );
+  const firstPortal = page.locator(
+    '[data-loot-chest-portal$="-1:markerquiz"]',
+  );
+  const secondPortal = page.locator(
+    '[data-loot-chest-portal$="-2:markerquiz"]',
+  );
+
+  await expect(scopes).toHaveCount(2);
+  await expect(portals).toHaveCount(2);
+  await expect(firstPortal).toBeHidden();
+  await expect(secondPortal).toBeHidden();
+
+  await scopes.nth(0).locator(".lia-quiz__resolve").click();
+  await expect(scopes.nth(0).locator(".lia-quiz")).toHaveClass(/\bresolved\b/);
+  await expect(firstPortal).toBeVisible();
+  await expect(secondPortal).toBeHidden();
+
+  await scopes.nth(1).locator(".lia-quiz__resolve").click();
+  await expect(scopes.nth(1).locator(".lia-quiz")).toHaveClass(/\bresolved\b/);
+  await expect(firstPortal).toBeVisible();
+  await expect(secondPortal).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("keeps identical solution Loot portals mapped across course sections", async ({ page }) => {
+  const { errors } = await openSource(page, makeCourse(`
+# Erste Sektion
+
+<div class="markerquiz">
+@markred(Erste)
+@TextmarkerQuiz
+</div>
+**************
+@Schatztruhe(markerquiz)
+**************
+
+# Zweite Sektion
+
+<div class="markerquiz">
+@markblue(Zweite)
+@TextmarkerQuiz
+</div>
+**************
+@Schatztruhe(markerquiz)
+**************
+`, [lootUrl]));
+  const scopes = page.locator(".markerquiz");
+  const firstPortal = page.locator(
+    '[data-loot-chest-portal$="-1:markerquiz"]',
+  );
+  const secondPortal = page.locator(
+    '[data-loot-chest-portal$="-2:markerquiz"]',
+  );
+
+  await expect(scopes).toHaveCount(1);
+  await expect(scopes).toContainText("Erste");
+  await expect(firstPortal).toHaveCount(1);
+  await expect(firstPortal).toBeHidden();
+  await expect(secondPortal).toHaveCount(0);
+
+  await scopes.locator(".lia-quiz__resolve").click();
+  await expect(firstPortal).toBeVisible();
+
+  await page.keyboard.press("ArrowRight");
+  await expect(scopes).toContainText("Zweite");
+  await expect(firstPortal).toHaveCount(0);
+  await expect(secondPortal).toHaveCount(1);
+  await expect(secondPortal).toBeHidden();
+  await scopes.locator(".lia-quiz__resolve").click();
+  await expect(secondPortal).toBeVisible();
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(scopes).toContainText("Erste");
+  await expect(firstPortal).toHaveCount(1);
+  await expect(firstPortal).toBeVisible();
+  await expect(secondPortal).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

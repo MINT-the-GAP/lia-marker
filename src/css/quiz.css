@@ -12,7 +12,8 @@
 
 .hlq-resolution[hidden],
 .hlq-resolution__delimiter,
-.hlq-metadata-artifact {
+.hlq-metadata-artifact,
+.hlq-deferred-loot-portal {
   display: none !important;
 }
 

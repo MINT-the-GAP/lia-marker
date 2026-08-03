@@ -1,6 +1,6 @@
 <!--
 author:   MINT-the-GAP, Martin Lommatzsch, Jihad Hyadi
-version:  1.1.1
+version:  1.0.0
 language: en
 edit: true
 narrator: US English Female
@@ -156,6 +156,26 @@ lia-marker recognizes the long, matching delimiter rows used above, preserves
 embedded solution elements, and restores the original DOM during cleanup.
 If LiaScript renders a supported quiz-metadata comment as visible text inside
 `.markerquiz`, only that visual artifact is hidden as well.
+
+The solution may also contain macros from `lia-loot`. A chest relocated to
+`markerquiz` is kept hidden together with its authored solution, even though
+`lia-loot` renders that chest through a document-level portal. Inline chests
+and relocated chests both become available after a correct Check or Resolve:
+
+```markdown
+<div class="markerquiz">
+@markred(Die neugierige Schülerin) @markblue(entdeckt)
+@TextmarkerQuiz
+</div>
+*****************
+@Energiekiste
+@Schatztruhe(markerquiz)
+*****************
+```
+
+Import `lia-marker` and `lia-loot` directly in the course header when using
+this combination. Identical relocated chests outside the solution remain
+immediately available; the source declaration IDs keep them separate.
 
 Use `@mark(text)` to accept any color:
 

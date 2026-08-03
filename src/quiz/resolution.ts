@@ -2,6 +2,11 @@ import { CONTENT_DOC } from "../dom/context";
 import { ensureScopeIds } from "../highlight/store";
 import type { Instance } from "../types";
 import { hlqActiveSlideId } from "./eval";
+import {
+  cleanupDeferredLootSolutionPortals,
+  ensureDeferredLootSolutionPortals,
+  revealDeferredLootSolutionPortals,
+} from "./loot-resolution";
 
 const ASTERISK_DELIMITER = /^\*{3,}$/;
 const RESOLUTION_CLASS = "hlq-resolution";
@@ -725,9 +730,11 @@ export function ensureMarkerQuizResolutions(I: Instance): void {
     ensureSerializedMetadataHidden(scope);
     bindResolution(I, scope);
   }
+  ensureDeferredLootSolutionPortals(I);
 }
 
 export function cleanupMarkerQuizResolutions(I: Instance): void {
+  cleanupDeferredLootSolutionPortals(I);
   for (const binding of resolutionByScope.values()) cleanupBinding(binding);
   resolutionByScope.clear();
   for (const artifact of Array.from(metadataArtifactsByScope.values())) {
@@ -741,6 +748,7 @@ export function cleanupMarkerQuizResolutions(I: Instance): void {
 export function revealMarkerQuizResolution(I: Instance, scopeEl: Element | null): void {
   if (!scopeEl) return;
 
+  revealDeferredLootSolutionPortals(I, scopeEl);
   ensureScopeIds();
   const binding = bindResolution(I, scopeEl);
   if (!binding) return;
