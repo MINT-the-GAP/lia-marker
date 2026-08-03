@@ -239,6 +239,7 @@ try {
 
 // ─── Tick (boot + DOM observer) ───────────────────────────────────────────────
 function tick(): void {
+  if (!I.__alive) return;
   ensureCSS();
   normalizeMacroCommaArgs();
   ensureMarkerQuizResolutions(I);

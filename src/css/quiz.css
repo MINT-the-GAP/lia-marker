@@ -11,7 +11,8 @@
 .hlq-proxy .hlq-lia { display: contents; }
 
 .hlq-resolution[hidden],
-.hlq-resolution__delimiter {
+.hlq-resolution__delimiter,
+.hlq-metadata-artifact {
   display: none !important;
 }
 

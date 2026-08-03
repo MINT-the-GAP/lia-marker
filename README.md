@@ -1,6 +1,6 @@
 <!--
 author:   MINT-the-GAP, Martin Lommatzsch, Jihad Hyadi
-version:  1.1.0
+version:  1.1.1
 language: en
 edit: true
 narrator: US English Female
@@ -149,6 +149,13 @@ Musterlösungstext
 The optional solution works with every target macro:
 `@markred`, `@markblue`, `@markgreen`, `@markyellow`, `@markpink`,
 `@markorange`, and the any-color variant `@mark`.
+
+The same syntax also works inside raw layout wrappers such as `dynFlex`.
+LiaScript can collapse the three solution lines there into adjacent text nodes;
+lia-marker recognizes the long, matching delimiter rows used above, preserves
+embedded solution elements, and restores the original DOM during cleanup.
+If LiaScript renders a supported quiz-metadata comment as visible text inside
+`.markerquiz`, only that visual artifact is hidden as well.
 
 Use `@mark(text)` to accept any color:
 

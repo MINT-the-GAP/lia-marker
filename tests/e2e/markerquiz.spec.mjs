@@ -10,12 +10,17 @@ const rawBase = `https://raw.githubusercontent.com/MINT-the-GAP/lia-marker/${rem
 const readmeUrl = `${rawBase}/README.md`;
 const bundleUrl = `${rawBase}/dist/index.js`;
 const useLiveRemote = process.env.LIA_MARKER_TEST_LIVE === "1";
+const weeklyTaskImports = [
+  "https://raw.githubusercontent.com/MINT-the-GAP/lia-DynFlex/refs/heads/main/README.md",
+  "https://raw.githubusercontent.com/MINT-the-GAP/lia-timer/refs/heads/main/README.md",
+];
 
-function makeCourse(body) {
+function makeCourse(body, imports = []) {
   return `<!--
 version: 1.0.0
 language: de
 import: ${readmeUrl}
+${imports.map((url) => `import: ${url}`).join("\n")}
 -->
 
 ${body}
@@ -89,8 +94,9 @@ async function openSource(page, sourceText, { local = !useLiveRemote } = {}) {
   return { errors, hits };
 }
 
-async function openCourse(page, body, options) {
-  return openSource(page, makeCourse(body), options);
+async function openCourse(page, body, options = {}) {
+  const { imports = [], ...openOptions } = options;
+  return openSource(page, makeCourse(body, imports), openOptions);
 }
 
 async function markTarget(page, expectedColor, actualColor, expectedCount) {
@@ -190,6 +196,266 @@ Musterlösungstext
       .sort() || [];
   })).toEqual(["blue", "red"]);
 
+  expect(errors).toEqual([]);
+});
+
+test("handles weekly-task solutions collapsed inside a raw flex wrapper", async ({ page }) => {
+  const { errors } = await openCourse(page, `
+# Wochenaufgaben-Layout
+
+<section class="dynFlex">
+<div class="flex-child">
+
+__a)__ **Nomen**
+
+<div class="markerquiz">
+Der @markred(Forscher) oeffnet vorsichtig die schwere @markblue(Metallkiste).
+
+<!-- data-solution-timer="120s" data-solution-timer-start="oncheck" data-solution-timer-badge="off" data-hint-button="2" data-solution-button="3" -->
+@TextmarkerQuiz
+</div>
+**************
+Musterloesung im Flex-Layout
+**************
+
+</div>
+</section>
+`, { imports: weeklyTaskImports });
+
+  const metadata = page.locator(".hlq-metadata-artifact");
+  const resolution = page.locator(".hlq-resolution");
+  const solution = page.getByText("Musterloesung im Flex-Layout", { exact: true });
+
+  await expect(metadata).toHaveCount(1);
+  await expect(metadata).toBeHidden();
+  await expect(resolution).toHaveCount(1);
+  await expect(resolution).toBeHidden();
+  await expect(solution).toBeHidden();
+  await expect(page.locator(".hlq-resolution__delimiter")).toHaveCount(2);
+
+  await page.locator(".lia-quiz__check").first().click();
+  await expect(solution).toBeHidden();
+  await expect(metadata).toBeHidden();
+
+  await page.locator(".lia-quiz__resolve").first().click();
+  await expect(solution).toBeVisible();
+  await expect(resolution).toHaveAttribute("data-hlq-state", "visible");
+  await expect(metadata).toBeHidden();
+
+  await page.evaluate(() => {
+    const registry = window.__LIA_TEXTMARKER_REG_V4__;
+    for (const instance of Object.values(registry?.instances || {})) {
+      if (!instance.__alive) continue;
+      instance.__alive = false;
+      instance.__cleanupResolutions?.();
+    }
+  });
+  await expect(page.locator(".hlq-resolution")).toHaveCount(0);
+  await expect(page.locator(".hlq-resolution__delimiter")).toHaveCount(0);
+  await expect(page.locator(".hlq-metadata-artifact")).toHaveCount(0);
+  await page.locator(".lia-quiz__resolve").first().dispatchEvent("click");
+  await expect(page.locator(".hlq-resolution")).toHaveCount(0);
+  await expect(page.locator(".hlq-resolution__delimiter")).toHaveCount(0);
+  await expect(page.locator(".hlq-metadata-artifact")).toHaveCount(0);
+  await expect.poll(() => page.locator(".markerquiz").evaluate((scope) => ({
+    metadataRestored: (scope.textContent || "").includes("data-solution-timer"),
+    solutionTextRestored: (scope.parentElement?.textContent || "").includes(
+      "**************Musterloesung im Flex-Layout**************",
+    ),
+    generatedAnchors: Array.from(scope.parentElement?.childNodes || [])
+      .filter((node) => node.nodeType === Node.COMMENT_NODE)
+      .filter((node) => node.nodeValue === "hlq-text-resolution").length,
+  }))).toEqual({
+    metadataRestored: true,
+    solutionTextRestored: true,
+    generatedAnchors: 0,
+  });
+  expect(errors).toEqual([]);
+});
+
+test("reveals a weekly-task solution element after a correct Check", async ({ page }) => {
+  const { errors } = await openCourse(page, `
+# Wochenaufgabe mit Element
+
+<div class="flex-child">
+<div class="markerquiz">
+@markgreen(Elementloesung)
+@TextmarkerQuiz
+</div>
+**************
+<span data-testid="weekly-solution-element">Truhenloesung</span>
+**************
+</div>
+`);
+
+  const solution = page.getByTestId("weekly-solution-element");
+  await expect(page.locator(".hlq-resolution")).toHaveCount(1);
+  await expect(solution).toBeHidden();
+  await markTarget(page, "green", "green", 1);
+  await page.locator(".lia-quiz__check").first().click();
+  await expect(solution).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("maps a shared weekly-task flex control to both solutions", async ({ page }) => {
+  const { errors } = await openCourse(page, `
+# Zwei Flex-Aufgaben
+
+<section class="dynFlex">
+<div class="flex-child">
+<div class="markerquiz">
+@markred(Erste)
+@TextmarkerQuiz
+</div>
+**************
+Erste Flex-Loesung
+**************
+</div>
+<div class="flex-child">
+<div class="markerquiz">
+@markblue(Zweite)
+@TextmarkerQuiz
+</div>
+**************
+Zweite Flex-Loesung
+**************
+</div>
+</section>
+`);
+
+  const first = page.getByText("Erste Flex-Loesung", { exact: true });
+  const second = page.getByText("Zweite Flex-Loesung", { exact: true });
+  const resolves = page.locator(".lia-quiz__resolve");
+
+  await expect(page.locator(".markerquiz")).toHaveCount(2);
+  await expect(page.locator(".hlq-resolution")).toHaveCount(2);
+  await expect(resolves).toHaveCount(1);
+  await expect(first).toBeHidden();
+  await expect(second).toBeHidden();
+
+  await markTarget(page, "red", "red", 1);
+  await page.locator(".lia-quiz__check").click();
+  await expect(first).toBeVisible();
+  await expect(second).toBeHidden();
+  await expect(page.locator(".lia-quiz")).toHaveClass(/\bopen\b/);
+
+  await resolves.nth(0).click();
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+  await expect(page.locator(".lia-quiz")).toHaveClass(/\bresolved\b/);
+  expect(errors).toEqual([]);
+});
+
+test("keeps all shared Check values through LiaScript rerenders", async ({ page }) => {
+  const { errors } = await openCourse(page, `
+# Zwei gemeinsam gepruefte Aufgaben
+
+<section class="dynFlex">
+<div class="flex-child">
+<div class="markerquiz">
+@markred(RotRichtig)
+@TextmarkerQuiz
+</div>
+**************
+Rote Musterloesung
+**************
+</div>
+<div class="flex-child">
+<div class="markerquiz">
+@markblue(BlauRichtig)
+@TextmarkerQuiz
+</div>
+**************
+Blaue Musterloesung
+**************
+</div>
+</section>
+`);
+
+  await markTarget(page, "red", "red", 1);
+  await markTarget(page, "blue", "blue", 2);
+  await page.locator(".lia-quiz__check").click();
+
+  await expect(page.getByText("Rote Musterloesung", { exact: true })).toBeVisible();
+  await expect(page.getByText("Blaue Musterloesung", { exact: true })).toBeVisible();
+  await expect(page.locator(".lia-quiz")).toHaveClass(/\bsolved\b/);
+  const inputs = page.locator(".markerquiz .hlq-proxy input");
+  await expect(inputs).toHaveCount(2);
+  await expect(inputs.nth(0)).toHaveValue("1");
+  await expect(inputs.nth(1)).toHaveValue("1");
+  expect(errors).toEqual([]);
+});
+
+test("keeps unrelated native quiz controls isolated", async ({ page }) => {
+  const { errors } = await openCourse(page, `
+# Standardquiz und Markerquiz
+
+Ein unabhaengiges Standardquiz:
+
+[[1]]
+
+Ein trennender Absatz zwischen den Aufgaben.
+
+<section class="dynFlex">
+<div class="flex-child">
+<div class="markerquiz">
+@markpurple(ErsteIsolierte)
+@TextmarkerQuiz
+</div>
+**************
+Erste isolierte Markerloesung
+**************
+</div>
+<div class="flex-child">
+<div class="markerquiz">
+@markorange(ZweiteIsolierte)
+@TextmarkerQuiz
+</div>
+**************
+Zweite isolierte Markerloesung
+**************
+</div>
+</section>
+
+Noch ein unabhaengiges Standardquiz:
+
+[[2]]
+`);
+
+  const quizzes = page.locator(".lia-quiz");
+  const first = page.getByText("Erste isolierte Markerloesung", { exact: true });
+  const second = page.getByText("Zweite isolierte Markerloesung", { exact: true });
+
+  await expect(quizzes).toHaveCount(3);
+  await expect(first).toBeHidden();
+  await expect(second).toBeHidden();
+  await quizzes.nth(0).locator(".lia-quiz__resolve").click();
+  await expect(first).toBeHidden();
+  await expect(second).toBeHidden();
+  await quizzes.nth(2).locator(".lia-quiz__resolve").click();
+  await expect(first).toBeHidden();
+  await expect(second).toBeHidden();
+  await quizzes.nth(1).locator(".lia-quiz__resolve").click();
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("does not treat collapsed Markdown emphasis as a solution", async ({ page }) => {
+  const { errors } = await openCourse(page, `
+# Kein Musterloesungsblock
+
+<div class="flex-child">
+<div class="markerquiz">
+@markorange(Normal)
+@TextmarkerQuiz
+</div>
+***wichtiger Hinweis***
+</div>
+`);
+
+  await expect(page.locator(".hlq-resolution")).toHaveCount(0);
+  await expect(page.getByText("wichtiger Hinweis", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
