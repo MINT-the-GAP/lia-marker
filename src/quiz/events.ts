@@ -1,6 +1,17 @@
 import { CONTENT_DOC } from "../dom/context";
 import type { Instance } from "../types";
+import {
+  getLiaInput,
+  liaInputIdentity,
+  sameLiaInputIdentity,
+  type LiaInputIdentity,
+} from "./dom";
 import { evalScope } from "./eval";
+import {
+  MARKER_QUIZ_GATE_ATTR,
+  recordMarkerQuizFailures,
+  scheduleMarkerQuizGates,
+} from "./metadata";
 import { solveScope } from "./solve";
 import { revealMarkerQuizResolution } from "./resolution";
 
@@ -23,13 +34,6 @@ function isRelevantHLQArea(node: Node | null): boolean {
   return !!el.closest(".lia-quiz") && findProxiesForAnyButton(el).length > 0;
 }
 
-function getLiaInput(proxy: Element): HTMLInputElement | null {
-  return (
-    proxy.querySelector(".hlq-lia input, .hlq-lia textarea, .hlq-lia select") ||
-    proxy.querySelector("input, textarea, select")
-  ) as HTMLInputElement | null;
-}
-
 function getLiaButtons(proxy: Element): Element[] {
   const inside = (root: Element) =>
     Array.from(root.querySelectorAll("button,[role='button'],a"))
@@ -39,36 +43,6 @@ function getLiaButtons(proxy: Element): Element[] {
   let btns = wrap ? inside(wrap) : [];
   if (!btns.length) btns = inside(proxy);
   return btns;
-}
-
-interface LiaInputIdentity {
-  group: number;
-  item: number | null;
-}
-
-function liaInputHandler(input: Element | null): string {
-  if (!input) return "";
-  return [input.getAttribute("oninput"), input.getAttribute("onchange")]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function liaInputIdentity(input: Element | null): LiaInputIdentity | null {
-  const handler = liaInputHandler(input);
-  const group = handler.match(/\[\s*["']input["']\s*,\s*(\d+)\s*\]/i);
-  if (!group) return null;
-  const item = handler.match(/\bparam\s*:\s*\{[\s\S]*?\bid\s*:\s*(\d+)/i);
-  return {
-    group: Number(group[1]),
-    item: item ? Number(item[1]) : null,
-  };
-}
-
-function sameLiaInputIdentity(
-  left: LiaInputIdentity | null,
-  right: LiaInputIdentity | null,
-): boolean {
-  return !!left && !!right && left.group === right.group && left.item === right.item;
 }
 
 function inferActionLoose(btn: Element): "check" | "solve" | null {
@@ -153,6 +127,8 @@ interface LiaValueUpdate {
   input: HTMLInputElement | null;
   identity: LiaInputIdentity | null;
   root: Element | Document;
+  scope: Element | null;
+  passed: boolean | null;
   value: string | number;
 }
 
@@ -191,13 +167,20 @@ function prepareHLQAction(
         : "No targets found."
     );
     if (r.pass) revealMarkerQuizResolution(I, scopeEl);
-    return { input, identity, root, value: r.pass ? 1 : 0 };
+    return {
+      input,
+      identity,
+      root,
+      scope: scopeEl,
+      passed: r.pass,
+      value: r.pass ? 1 : 0,
+    };
   }
 
   solveScope(I, scopeEl, renderFn);
   setProxyMsg(proxy, "Solution displayed.");
   revealMarkerQuizResolution(I, scopeEl);
-  return { input, identity, root, value: 1 };
+  return { input, identity, root, scope: scopeEl, passed: null, value: 1 };
 }
 
 export function wireHLQEvents(I: Instance, renderFn: () => void): void {
@@ -205,6 +188,11 @@ export function wireHLQEvents(I: Instance, renderFn: () => void): void {
     if (!I.__alive) return;
     const clicked = (e.target as Element)?.closest?.("button,[role='button'],a,[role='link']");
     if (!clicked) return;
+    if (clicked.closest(`[${MARKER_QUIZ_GATE_ATTR}="true"]`)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
     if (isForeignToolUi(clicked)) return;
     if (!isRelevantHLQArea(clicked)) return;
 
@@ -216,7 +204,9 @@ export function wireHLQEvents(I: Instance, renderFn: () => void): void {
       const act = own.getAttribute("data-hlq-act") as "check" | "solve" | null;
       if (!act) return;
       const update = prepareHLQAction(I, act, proxy, renderFn);
+      if (update.passed === false) recordMarkerQuizFailures(I, [update.scope]);
       setLiaValue(currentLiaInput(update), update.value);
+      scheduleMarkerQuizGates(I);
       return;
     }
 
@@ -236,5 +226,6 @@ export function wireHLQEvents(I: Instance, renderFn: () => void): void {
     // Prepare every reveal before LiaScript consumes any proxy value: raw
     // flex layouts can replace the complete multi-quiz subtree synchronously.
     updates.forEach((update) => setLiaValue(currentLiaInput(update), update.value));
+    scheduleMarkerQuizGates(I);
   }, true);
 }

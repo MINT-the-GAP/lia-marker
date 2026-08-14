@@ -10,6 +10,11 @@
 .hlq-proxy .hlq-msg { display: none !important; }
 .hlq-proxy .hlq-lia { display: contents; }
 
+.lia-quiz__hint[data-hlq-gate-hidden="true"],
+.lia-quiz__resolve[data-hlq-gate-hidden="true"] {
+  display: none !important;
+}
+
 .hlq-resolution[hidden],
 .hlq-resolution__delimiter,
 .hlq-metadata-artifact,

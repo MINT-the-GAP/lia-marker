@@ -2,6 +2,7 @@ import { CONTENT_DOC } from "../dom/context";
 import { ensureScopeIds } from "../highlight/store";
 import type { Instance } from "../types";
 import { hlqActiveSlideId } from "./eval";
+import { ensureMarkerQuizGates } from "./metadata";
 import {
   cleanupDeferredLootSolutionPortals,
   ensureDeferredLootSolutionPortals,
@@ -700,7 +701,10 @@ function ensureResolutionStateObserver(I: Instance): void {
       record.type === "childList" ||
       (record.target instanceof Element && record.target.matches(".lia-quiz"))
     );
-    if (resolutionStateChanged) ensureMarkerQuizResolutions(I);
+    if (resolutionStateChanged) {
+      ensureMarkerQuizResolutions(I);
+      ensureMarkerQuizGates(I);
+    }
   });
   I.moResolutions.observe(CONTENT_DOC.body, {
     attributes: true,

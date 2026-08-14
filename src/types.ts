@@ -48,6 +48,8 @@ export interface Instance {
   __layoutTimer?: number;
   __prefillKeys?: Set<string>;
   __revealedSolutions?: Set<string>;
+  __quizGateAttempts?: Map<string | Element, number>;
+  __cleanupQuizGates?: () => void;
   __cleanupResolutions?: () => void;
   [key: string]: unknown;
 }

@@ -12,6 +12,7 @@ import { ensureRootButtonAndPanel, positionHLButton, detectNavStack } from "./ui
 import { positionPanelSmart, ensureSwatchesOnce, applyUI, localizePanelText } from "./ui/panel";
 import { wireRootDelegationOnce, wireUIOnce, wireContentEvents } from "./ui/events";
 import { wireHLQEvents } from "./quiz/events";
+import { ensureMarkerQuizGates } from "./quiz/metadata";
 import { ensureMarkerQuizResolutions } from "./quiz/resolution";
 import { explainSelectionWord } from "./explain";
 import { layoutSignature } from "./highlight/render";
@@ -29,18 +30,66 @@ const DOC_ID =
   "::" +
   (CONTENT_DOC.title || "");
 
+function stopInstance(instance: Instance, timerWindow: Window): void {
+  try { instance.moSlides?.disconnect(); } catch(e){}
+  try { instance.__cleanupQuizGates?.(); } catch(e){}
+  try { instance.__cleanupResolutions?.(); } catch(e){}
+  try { instance.__alive = false; } catch(e){}
+  try { instance.moDock?.disconnect(); } catch(e){}
+  try { instance.moTheme?.disconnect(); } catch(e){}
+  try { instance.moResolutions?.disconnect(); } catch(e){}
+  try { instance.roLayout?.disconnect(); } catch(e){}
+  try {
+    for (const timer of instance.posTimers || []) timerWindow.clearTimeout(timer);
+    instance.posTimers = [];
+  } catch(e){}
+  try {
+    if (instance.__layoutTimer) {
+      timerWindow.clearInterval(instance.__layoutTimer as number);
+    }
+  } catch(e){}
+  try { CONTENT_DOC.getElementById("lia-hl-overlay")?.remove(); } catch(e){}
+}
+
+function cleanupLegacyLiveEditorHost(): void {
+  try {
+    const frame = ROOT_WIN.frameElement as HTMLElement | null;
+    if (frame?.id !== "liascript-preview") return;
+
+    const hostWindow = ROOT_WIN.parent as Window & typeof globalThis;
+    if (!hostWindow || hostWindow === ROOT_WIN) return;
+    const hostDocument = hostWindow.document;
+    const legacyRegistry = (hostWindow as any)[REGKEY];
+    const legacyInstance = legacyRegistry?.instances?.[DOC_ID] as
+      Instance | undefined;
+
+    if (legacyInstance) {
+      stopInstance(legacyInstance, hostWindow);
+      delete legacyRegistry.instances[DOC_ID];
+    }
+
+    for (const id of [
+      "lia-hl-ui-overlay-v1",
+      "lia-hl-inline-slot-v1",
+      "lia-hl-panel",
+      "lia-hl-root-style-v4",
+    ]) {
+      hostDocument.getElementById(id)?.remove();
+    }
+    hostDocument.body.classList.remove(
+      "lia-hl-active",
+      "lia-hl-panel-open",
+      "lia-hl-navstack",
+    );
+  } catch(e){}
+}
+
+cleanupLegacyLiveEditorHost();
+
 // ─── Teardown previous instance ───────────────────────────────────────────────
 const prev: Instance | undefined = REG.instances[DOC_ID];
 if (prev?.__alive) {
-  try { prev.moSlides?.disconnect(); } catch(e){}
-  try { prev.__cleanupResolutions?.(); } catch(e){}
-  try { prev.__alive = false; } catch(e){}
-  try { prev.moDock?.disconnect(); } catch(e){}
-  try { prev.moTheme?.disconnect(); } catch(e){}
-  try { prev.moResolutions?.disconnect(); } catch(e){}
-  try { prev.roLayout?.disconnect(); } catch(e){}
-  try { if (prev.__layoutTimer) ROOT_WIN.clearInterval(prev.__layoutTimer as number); } catch(e){}
-  try { CONTENT_DOC.getElementById("lia-hl-overlay")?.remove(); } catch(e){}
+  stopInstance(prev, ROOT_WIN);
 }
 
 // ─── Instance ─────────────────────────────────────────────────────────────────
@@ -243,12 +292,14 @@ function tick(): void {
   ensureCSS();
   normalizeMacroCommaArgs();
   ensureMarkerQuizResolutions(I);
+  ensureMarkerQuizGates(I);
   if (I.ticking) return;
   I.ticking = true;
 
   ROOT_WIN.requestAnimationFrame(() => {
     try {
       ensureMarkerQuizResolutions(I);
+      ensureMarkerQuizGates(I);
       ensureRootButtonAndPanel();
       localizePanelText();
       wireRootDelegationOnce(I, doRender);

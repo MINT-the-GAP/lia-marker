@@ -10,6 +10,7 @@ const rawBase = `https://raw.githubusercontent.com/MINT-the-GAP/lia-marker/${rem
 const readmeUrl = `${rawBase}/README.md`;
 const bundleUrl = `${rawBase}/dist/index.js`;
 const useLiveRemote = process.env.LIA_MARKER_TEST_LIVE === "1";
+const liveEditorBase = "https://liascript.github.io/LiveEditor/";
 const dynFlexUrl =
   "https://raw.githubusercontent.com/MINT-the-GAP/lia-DynFlex/refs/heads/main/README.md";
 const timerUrl =
@@ -83,6 +84,11 @@ function sourceUrl(sourceText) {
   return `https://liascript.github.io/course/?${source}`;
 }
 
+function liveEditorUrl(sourceText) {
+  const encoded = Buffer.from(sourceText, "utf8").toString("base64");
+  return `${liveEditorBase}?${encodeURIComponent(`/show/code/${encoded}`)}`;
+}
+
 function collectBrowserErrors(page) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -145,6 +151,70 @@ async function openCourse(page, body, options = {}) {
   const { imports = [], ...openOptions } = options;
   return openSource(page, makeCourse(body, imports), openOptions);
 }
+
+test("keeps the toolbar button inside the LiveEditor preview", async ({ page, browserName }) => {
+  test.skip(
+    browserName === "webkit",
+    "The public LiveEditor does not initialize its preview iframe in Playwright WebKit.",
+  );
+
+  const hits = await routeWorkingTree(page);
+  const source = makeCourse(`
+# LiveEditor-Position
+
+<div class="markerquiz">
+@mark(Zwei) Gruppen.
+
+@TextmarkerQuiz
+</div>
+`);
+
+  await page.goto(liveEditorUrl(source), { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator("#liascript-preview")).toBeVisible();
+  const preview = page.frameLocator("#liascript-preview");
+  await expect(preview.locator(".markerquiz").first()).toBeVisible();
+  await expect.poll(() => hits.readme).toBeGreaterThan(0);
+  await expect.poll(() => hits.bundle).toBeGreaterThan(0);
+
+  await expect(page.locator("#lia-hl-btn")).toHaveCount(0);
+  const button = preview.locator("#lia-hl-btn");
+  await expect(button).toHaveCount(1);
+  await expect(button).toBeVisible();
+
+  const placement = await button.evaluate((element) => {
+    const toc = document.getElementById("lia-btn-toc") ||
+      document.querySelector("#lia-toolbar-nav .lia-header__left button");
+    const buttonRect = element.getBoundingClientRect();
+    const tocRect = toc?.getBoundingClientRect();
+    return {
+      parentId: element.parentElement?.id || "",
+      left: buttonRect.left,
+      right: buttonRect.right,
+      top: buttonRect.top,
+      bottom: buttonRect.bottom,
+      centerY: buttonRect.top + buttonRect.height / 2,
+      tocRight: tocRect?.right ?? null,
+      tocCenterY: tocRect ? tocRect.top + tocRect.height / 2 : null,
+      viewportWidth: document.documentElement.clientWidth,
+      viewportHeight: document.documentElement.clientHeight,
+    };
+  });
+
+  expect(placement.parentId).toBe("lia-hl-ui-overlay-v1");
+  expect(placement.left).toBeGreaterThanOrEqual(0);
+  expect(placement.right).toBeLessThanOrEqual(placement.viewportWidth);
+  expect(placement.top).toBeGreaterThanOrEqual(0);
+  expect(placement.bottom).toBeLessThanOrEqual(placement.viewportHeight);
+  expect(placement.tocRight).not.toBeNull();
+  expect(placement.left - placement.tocRight).toBeGreaterThanOrEqual(4);
+  expect(placement.left - placement.tocRight).toBeLessThanOrEqual(12);
+  expect(Math.abs(placement.centerY - placement.tocCenterY)).toBeLessThanOrEqual(2);
+
+  await button.click();
+  await expect(preview.locator("#lia-hl-panel")).toBeVisible();
+  await expect(page.locator("#lia-hl-panel")).toHaveCount(0);
+});
 
 async function markTarget(page, expectedColor, actualColor, expectedCount) {
   const target = page.locator(
@@ -362,6 +432,135 @@ Musterloesung im Flex-Layout
     solutionTextRestored: true,
     generatedAnchors: 0,
   });
+  expect(errors).toEqual([]);
+});
+
+for (const [name, quizSource] of [
+  [
+    "before the task label",
+    `<!-- data-solution-timer="120s" data-solution-timer-start="oncheck" data-solution-timer-badge="off" data-hint-button="2" data-solution-button="3" -->
+__$l)\\;\\;$__ **Numeralien**
+<div class="markerquiz">
+@mark(Zwei) Gruppen untersuchten insgesamt @mark(zwoelf) Fotografien.
+
+@TextmarkerQuiz
+</div>`,
+  ],
+  [
+    "between the task label and marker quiz",
+    `__$l)\\;\\;$__ **Numeralien**
+
+<!-- data-solution-timer="120s" data-solution-timer-start="oncheck" data-solution-timer-badge="off" data-hint-button="2" data-solution-button="3" -->
+<div class="markerquiz">
+@mark(Zwei) Gruppen untersuchten insgesamt @mark(zwoelf) Fotografien.
+
+@TextmarkerQuiz
+</div>`,
+  ],
+]) {
+  test(`applies marker-quiz metadata ${name}`, async ({ page }) => {
+    const { errors } = await openCourse(page, `
+# Markerquiz-Metadaten
+
+${quizSource}
+`, { imports: [timerUrl] });
+
+    const configured = page.locator([
+      '[data-solution-timer="120s"]',
+      '[data-solution-timer-start="oncheck"]',
+      '[data-solution-timer-badge="off"]',
+      '[data-hint-button="2"]',
+      '[data-solution-button="3"]',
+    ].join(""));
+    await expect.poll(() => configured.count()).toBeGreaterThan(0);
+    await expect.poll(() => configured.evaluateAll((elements) =>
+      elements.some((element) =>
+        element.dataset.__solTimerArmedSolution === "1"
+      )
+    )).toBe(true);
+
+    const check = page.locator(".lia-quiz__check").first();
+    const resolve = page.locator(".lia-quiz__resolve").first();
+    await expect(check).toBeVisible();
+    await expect(resolve).toHaveCount(1);
+    await expect(resolve).toBeHidden();
+    await check.click();
+    await expect(resolve).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const [name, quizSource] of [
+  [
+    "before the task label",
+    `<!-- data-hint-button="2" data-solution-button="3" -->
+__$l)\\;\\;$__ **Numeralien**
+<div class="markerquiz">
+@mark(Zwei) Gruppen untersuchten insgesamt @mark(zwoelf) Fotografien.
+
+@TextmarkerQuiz
+</div>`,
+  ],
+  [
+    "between the task label and marker quiz",
+    `__$l)\\;\\;$__ **Numeralien**
+
+<!-- data-hint-button="2" data-solution-button="3" -->
+<div class="markerquiz">
+@mark(Zwei) Gruppen untersuchten insgesamt @mark(zwoelf) Fotografien.
+
+@TextmarkerQuiz
+</div>`,
+  ],
+]) {
+  test(`honors marker-quiz attempt gates ${name}`, async ({ page }) => {
+    const { errors } = await openCourse(page, `
+# Markerquiz-Versuchsgrenzen
+
+${quizSource}
+`);
+
+    const check = page.locator(".lia-quiz__check").first();
+    const resolve = page.locator(".lia-quiz__resolve").first();
+    await expect(check).toBeVisible();
+    await expect(resolve).toHaveCount(1);
+    await expect(resolve).toBeHidden();
+
+    await check.click();
+    await expect(resolve).toBeHidden();
+    await check.click();
+    await expect(resolve).toBeHidden();
+    await check.click();
+    await expect(resolve).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
+
+test("honors a hint attempt gate placed before the marker quiz", async ({ page }) => {
+  const { errors } = await openCourse(page, `
+# Markerquiz-Hinweisgrenze
+
+__$l)\\;\\;$__ **Numeralien**
+
+<!-- data-hint-button="2" -->
+<div class="markerquiz">
+@mark(Zwei) Gruppen untersuchten insgesamt @mark(zwoelf) Fotografien.
+
+@TextmarkerQuiz
+[[?]] Markiere zuerst ein Numerale.
+[[?]] Im Satz gibt es zwei Numeralien.
+</div>
+`);
+
+  const check = page.locator(".lia-quiz__check").first();
+  const hint = page.locator(".lia-quiz__hint").first();
+  await expect(check).toBeVisible();
+  await expect(hint).toHaveCount(1);
+  await expect(hint).toBeHidden();
+  await check.click();
+  await expect(hint).toBeHidden();
+  await check.click();
+  await expect(hint).toBeVisible();
   expect(errors).toEqual([]);
 });
 
