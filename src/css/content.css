@@ -14,10 +14,22 @@
   --hl-z: 9999999;
 }
 
-#lia-hl-overlay {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: calc(var(--hl-z) - 1) !important;
+[data-lia-hl-container] {
+  isolation: isolate;
+}
+
+[data-lia-hl-positioned] {
+  position: relative !important;
+}
+
+#lia-hl-overlay,
+.lia-hl-scroll-overlay {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  z-index: 1 !important;
   pointer-events: none !important;
 }
 

@@ -1,4 +1,4 @@
-import { CONTENT_WIN, CONTENT_DOC } from "./context";
+import { CONTENT_WIN, CONTENT_DOC, getContentRoot } from "./context";
 
 export interface ScrollCtx {
   host: Element | null;
@@ -19,7 +19,7 @@ function isScrollable(el: Element): boolean {
 }
 
 export function detectScrollHost(): Element | null {
-  let n: Element | null = CONTENT_DOC.querySelector("main") || CONTENT_DOC.body;
+  let n: Element | null = getContentRoot();
   for (let i = 0; i < 10 && n && n !== CONTENT_DOC.body; i++) {
     if (isScrollable(n)) return n;
     n = n.parentElement;

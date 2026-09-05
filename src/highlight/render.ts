@@ -1,9 +1,10 @@
-import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC } from "../dom/context";
+import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC, getContentRoot } from "../dom/context";
 // ROOT_DOC, CONTENT_WIN used in layoutSignature
 import type { Instance } from "../types";
 import { getScrollCtx } from "../dom/scroll";
 import { packedRectsFromRange } from "../dom/rects";
 import { rangeFromAnchor } from "../dom/ranges";
+import { clearOverlays, mountOverlay, overlayForRange } from "./overlay";
 import { getSlideCandidates, ensureSlideIds, getActiveSlideId, shouldFilterBySlide, slideIdFromNode } from "../slides";
 
 const DEBUG = false;
@@ -13,14 +14,15 @@ function dbg(...args: unknown[]): void {
 }
 
 export function drawRects(item: Instance["HL"][number], overlay: Element, S: ReturnType<typeof getScrollCtx>): void {
+  const origin = overlay.getBoundingClientRect();
   for (const rr of item.rects) {
     const el = CONTENT_DOC.createElement("div");
     el.className = "lia-hl-rect";
     el.setAttribute("data-hl", item.color);
     el.setAttribute("data-id", String(item.id));
     el.setAttribute("data-kind", item.kind);
-    el.style.left   = `${Math.round(S.ox + (rr.x - S.sx))}px`;
-    el.style.top    = `${Math.round(S.oy + (rr.y - S.sy))}px`;
+    el.style.left   = `${Math.round(S.ox + (rr.x - S.sx) - origin.left)}px`;
+    el.style.top    = `${Math.round(S.oy + (rr.y - S.sy) - origin.top)}px`;
     el.style.width  = `${Math.round(rr.w)}px`;
     el.style.height = `${Math.round(rr.h)}px`;
     overlay.appendChild(el);
@@ -28,7 +30,8 @@ export function drawRects(item: Instance["HL"][number], overlay: Element, S: Ret
 }
 
 export function render(I: Instance, overlay: Element): void {
-  overlay.innerHTML = "";
+  mountOverlay(overlay);
+  clearOverlays(overlay);
 
   ensureSlideIds();
 
@@ -84,7 +87,7 @@ export function render(I: Instance, overlay: Element): void {
     }
 
     item.rects = packed;
-    drawRects(item, overlay, S);
+    drawRects(item, overlayForRange(r, overlay), S);
   }
 
   dbg("render:end", { activeId, overlayChildren: overlay.childElementCount });
@@ -100,7 +103,7 @@ export function recalcAllHighlights(I: Instance): void {
 }
 
 export function layoutSignature(): string {
-  const main = CONTENT_DOC.querySelector("main") || CONTENT_DOC.body;
+  const main = getContentRoot();
   const csMain = CONTENT_WIN.getComputedStyle(main);
   const csRoot = CONTENT_WIN.getComputedStyle(CONTENT_DOC.documentElement);
 
@@ -128,7 +131,8 @@ export function layoutSignature(): string {
     (contBody?.getAttribute("data-layout")||"");
 
   const mr = (main as HTMLElement).getBoundingClientRect();
-  const mainGeo = [mr.left, mr.top, mr.width].map(v => Math.round(v)).join(",");
+  // Scrolling changes viewport coordinates, but not the content layout.
+  const mainGeo = [mr.width, mr.height].map(v => Math.round(v)).join(",");
 
   const header =
     ROOT_DOC.querySelector("header#lia-toolbar-nav") ||
@@ -157,7 +161,6 @@ export function checkLayoutAndRecalc(I: Instance, renderFn: (I: Instance, overla
   const sig = layoutSignature();
   if (sig !== I.__layoutSig) {
     I.__layoutSig = sig;
-    recalcAllHighlights(I);
     renderFn(I, overlay);
   }
 }
@@ -169,7 +172,6 @@ export function scheduleForcedRecalc(I: Instance, renderFn: (I: Instance, overla
     I.roPending = false;
     if (!I.__alive) return;
     if (!I.HL || I.HL.length === 0) return;
-    recalcAllHighlights(I);
     renderFn(I, overlay);
   });
 }
@@ -184,7 +186,7 @@ export function ensureLayoutResizeObserver(I: Instance, renderFn: (I: Instance, 
   }
 
   const want = new Set<Element>();
-  const main = CONTENT_DOC.querySelector("main") || CONTENT_DOC.body;
+  const main = getContentRoot();
   if (main) want.add(main);
   CONTENT_DOC.querySelectorAll(".dynFlex, .flex-child").forEach(el => want.add(el));
 

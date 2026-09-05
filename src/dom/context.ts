@@ -46,3 +46,8 @@ export const ROOT_DOC = ROOT_WIN.document;
 
 export const CONTENT_WIN = window;
 export const CONTENT_DOC = document;
+
+// LiaScript can retain a hidden previous main during section navigation.
+export function getContentRoot(): HTMLElement {
+  return CONTENT_DOC.querySelector<HTMLElement>("main:not([hidden])") || CONTENT_DOC.body;
+}

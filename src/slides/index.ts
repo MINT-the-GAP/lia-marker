@@ -1,6 +1,7 @@
-import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC } from "../dom/context";
+import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC, getContentRoot } from "../dom/context";
 import type { HighlightItem } from "../types";
 import { rangeFromAnchor } from "../dom/ranges";
+import { isOverlayMutation } from "../highlight/overlay";
 import { getViewportRect, interAreaDOMRect } from "../dom/rects";
 
 function getSlidesRoot(): Element | null {
@@ -14,7 +15,7 @@ function getSlidesRoot(): Element | null {
 }
 
 function getMainRoot(): Element {
-  return CONTENT_DOC.querySelector("main") || CONTENT_DOC.body;
+  return getContentRoot();
 }
 
 export function getSlideCandidates(): Element[] {
@@ -134,7 +135,8 @@ export function ensureRevealSlideObserver(
 
   const obsWin = (rr.ownerDocument === ROOT_DOC) ? ROOT_WIN : CONTENT_WIN;
 
-  instance.moSlides = new (obsWin as any).MutationObserver(() => {
+  instance.moSlides = new (obsWin as any).MutationObserver((records: MutationRecord[]) => {
+    if (records.every(isOverlayMutation)) return;
     onSlideChange();
   });
 

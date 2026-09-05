@@ -1,4 +1,4 @@
-import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC } from "./dom/context";
+import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC, getContentRoot } from "./dom/context";
 import cssQuiz    from "bundle-text:./css/quiz.css";
 import cssContent from "bundle-text:./css/content.css";
 import cssRoot    from "bundle-text:./css/root.css";
@@ -19,6 +19,7 @@ import { layoutSignature } from "./highlight/render";
 import { getActiveSlideId, slideIdFromNode, getSlideCandidates } from "./slides";
 import { packedRectsFromRange } from "./dom/rects";
 import { rangeFromAnchor } from "./dom/ranges";
+import { clearOverlays, isOverlayMutation, mountOverlay, removeOverlays } from "./highlight/overlay";
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 const REGKEY = "__LIA_TEXTMARKER_REG_V4__";
@@ -48,7 +49,7 @@ function stopInstance(instance: Instance, timerWindow: Window): void {
       timerWindow.clearInterval(instance.__layoutTimer as number);
     }
   } catch(e){}
-  try { CONTENT_DOC.getElementById("lia-hl-overlay")?.remove(); } catch(e){}
+  try { removeOverlays(); } catch(e){}
 }
 
 function cleanupLegacyLiveEditorHost(): void {
@@ -210,8 +211,8 @@ function ensureOverlay(): HTMLElement {
   if (!overlay) {
     overlay = CONTENT_DOC.createElement("div");
     overlay.id = "lia-hl-overlay";
-    CONTENT_DOC.body.appendChild(overlay);
   }
+  mountOverlay(overlay);
   return overlay;
 }
 
@@ -230,8 +231,12 @@ function scheduleRender(): void {
   });
 }
 
-CONTENT_WIN.addEventListener("scroll", scheduleRender, { passive: true });
-CONTENT_DOC.addEventListener("scroll", scheduleRender, { passive: true, capture: true });
+// Highlight layers scroll with their content. Only slide visibility may need
+// updating when a presentation chooses its active section from the viewport.
+CONTENT_DOC.addEventListener("scroll", () => {
+  if (!I.__alive) return;
+  if (getSlideCandidates().length >= 2 && getActiveSlideId() !== I.__activeSlide) scheduleRender();
+}, { passive: true, capture: true });
 CONTENT_WIN.addEventListener("resize", () => {
   adaptUIVars();
   checkLayoutAndRecalc(I, render, overlay);
@@ -265,10 +270,14 @@ let __hlSyncToken = 0;
 
 function scheduleSync(): void {
   const token = ++__hlSyncToken;
-  try { overlay.innerHTML = ""; } catch(e){}
+  try { clearOverlays(overlay); } catch(e){}
   const run = () => {
     if (!I.__alive) return;
     if (token !== __hlSyncToken) return;
+    // Reveal can change the visible section using attributes alone. Collect
+    // its prefills before the single render, without relying on our own DOM
+    // mutations to trigger another tick.
+    ensurePrefills(I, () => {});
     doRender();
   };
   try { ROOT_WIN.requestAnimationFrame(run); } catch(e){}
@@ -304,6 +313,7 @@ function tick(): void {
       localizePanelText();
       wireRootDelegationOnce(I, doRender);
       runHLPositionNow();
+      if (overlay.parentElement !== getContentRoot()) doRender();
       ensureLayoutResizeObserver(I, render, overlay);
       ensureRevealSlideObserver(I, () => scheduleSync());
       checkLayoutAndRecalc(I, render, overlay);
@@ -320,7 +330,10 @@ function tick(): void {
 }
 
 try {
-  I.moDock = new MutationObserver(() => tick());
+  I.moDock = new MutationObserver(records => {
+    if (records.every(isOverlayMutation)) return;
+    tick();
+  });
   I.moDock.observe(ROOT_DOC.body, { childList: true, subtree: true });
 } catch(e){}
 
