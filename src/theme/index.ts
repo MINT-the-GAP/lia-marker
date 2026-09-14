@@ -74,7 +74,7 @@ export function readThemeAccent(): string {
     ROOT_DOC.querySelector("header.lia-header"),
     ROOT_DOC.body,
     ROOT_DOC.documentElement,
-    CONTENT_DOC.querySelector("main"),
+    CONTENT_DOC.querySelector("main:not([hidden])"),
     CONTENT_DOC.body,
     CONTENT_DOC.documentElement
   ];
@@ -101,7 +101,8 @@ function firstNonTransparentBg(el: Element | null): string {
 }
 
 function setVar(doc: Document, name: string, value: string): void {
-  (doc.documentElement.style as CSSStyleDeclaration).setProperty(name, value);
+  const style = doc.documentElement.style;
+  if (style.getPropertyValue(name) !== value) style.setProperty(name, value);
 }
 
 function readRenderedAccentFromToolbar(): string {
@@ -148,8 +149,8 @@ export function adaptUIVars(): void {
     ROOT_DOC.querySelector("header.lia-header");
 
   const contentMain =
-    CONTENT_DOC.querySelector("main") ||
-    CONTENT_DOC.querySelector("[role='main']") ||
+    CONTENT_DOC.querySelector("main:not([hidden])") ||
+    CONTENT_DOC.querySelector("[role='main']:not([hidden])") ||
     CONTENT_DOC.body;
 
   const mainStyle = getStyleSafe(contentMain);
@@ -173,31 +174,24 @@ export function adaptUIVars(): void {
   accentStr = normalizeColorValue(accentStr);
   if (!accentStr) accentStr = "rgb(11,95,255)";
 
-  try { setVar(ROOT_DOC, "--hl-accent", accentStr); } catch(e){}
-  try { setVar(CONTENT_DOC, "--hl-accent", accentStr); } catch(e){}
-
   const uiBg     = normalizeColorValue(bgStr);
   const uiFg     = normalizeColorValue(fgStr);
   const uiMuted  = isDark ? "rgba(255,255,255,.68)" : "rgba(0,0,0,.62)";
   const uiBorder = isDark ? "rgba(255,255,255,.16)" : "rgba(0,0,0,.14)";
   const uiShadow = isDark ? "0 18px 44px rgba(0,0,0,.55)" : "0 16px 42px rgba(0,0,0,.16)";
 
-  for (const [name, val] of [
+  // Complete style reads before publishing variables to either document.
+  const headerBg = rootHeader ? getStyleSafe(rootHeader)?.backgroundColor : "";
+  const variables = [
+    ["--hl-accent", accentStr],
     ["--hl-ui-bg", uiBg], ["--hl-ui-fg", uiFg],
     ["--hl-ui-muted", uiMuted], ["--hl-ui-border", uiBorder],
     ["--hl-ui-shadow", uiShadow]
-  ] as [string, string][]) {
-    try { setVar(ROOT_DOC, name, val); } catch(e){}
-    try { setVar(CONTENT_DOC, name, val); } catch(e){}
-  }
-
-  const btn = ROOT_DOC.getElementById("lia-hl-btn");
-  if (btn) {
-    const header = rootHeader as HTMLElement | null;
-    if (header) {
-      const cs = getStyleSafe(header);
-      const headerBg = cs?.backgroundColor || "";
-      if (headerBg) try { setVar(ROOT_DOC, "--hl-btn-bg", headerBg); } catch(e){}
+  ] as [string, string][];
+  for (const doc of new Set([ROOT_DOC, CONTENT_DOC])) {
+    for (const [name, value] of variables) {
+      try { setVar(doc, name, value); } catch(e){}
     }
   }
+  if (headerBg) try { setVar(ROOT_DOC, "--hl-btn-bg", headerBg); } catch(e){}
 }

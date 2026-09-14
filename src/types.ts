@@ -49,6 +49,7 @@ export interface Instance {
   __prefillKeys?: Set<string>;
   __revealedSolutions?: Set<string>;
   __quizGateAttempts?: Map<string | Element, number>;
+  __cleanupPosition?: () => void;
   __cleanupQuizGates?: () => void;
   __cleanupResolutions?: () => void;
   [key: string]: unknown;

@@ -1,6 +1,8 @@
-import { ROOT_WIN, ROOT_DOC, CONTENT_DOC } from "../dom/context";
+import { ROOT_DOC, CONTENT_DOC } from "../dom/context";
 import type { Instance } from "../types";
-import { clamp, getViewport } from "./button";
+import { clamp, type Viewport, type ButtonLayout } from "./button";
+import { scheduleHLPosition } from "./position";
+import { setStyle, toggleClass } from "./style";
 
 const HL_I18N: Record<string, { color: string; clear_all: string; clear_all_title: string; explain_word: string; explain_word_title: string }> = {
   en: { color: "Color", clear_all: "Clear all", clear_all_title: "Remove all highlights", explain_word: "Explain Word", explain_word_title: "Explain selected word" },
@@ -70,49 +72,34 @@ export function localizePanelText(): void {
   __lastAppliedLang = lang;
 }
 
-function measurePanel(panel: HTMLElement): { w: number; h: number } {
-  const prevDisplay = panel.style.display;
-  const prevVis     = panel.style.visibility;
-  const prevLeft    = panel.style.left;
-  const prevTop     = panel.style.top;
+export interface PanelLayout { left: number; top: number; viewportWidth: number; viewportHeight: number; }
 
-  panel.style.display    = "block";
-  panel.style.visibility = "hidden";
-  panel.style.left       = "-9999px";
-  panel.style.top        = "-9999px";
-
-  const w = panel.offsetWidth  || 130;
-  const h = panel.offsetHeight || 180;
-
-  panel.style.display    = prevDisplay;
-  panel.style.visibility = prevVis;
-  panel.style.left       = prevLeft;
-  panel.style.top        = prevTop;
-
-  return { w, h };
+/** The open panel is already laid out by applyUI; measuring never moves it. */
+export function measurePanel(I: Instance, button: ButtonLayout, vp: Viewport): PanelLayout | null {
+  const panel = ROOT_DOC.getElementById("lia-hl-panel");
+  if (!panel || !(I.state.active && I.state.panelOpen)) return null;
+  const r = panel.getBoundingClientRect();
+  // scrollHeight includes clipped contents. Using the previous constrained
+  // height would place an expanding panel incorrectly for one frame.
+  const width = Math.min(132, Math.max(0, vp.w - 16));
+  const naturalHeight = Math.max(r.height, panel.scrollHeight + r.height - panel.clientHeight);
+  const height = Math.min(naturalHeight || 180, Math.max(0, vp.h - 16));
+  let top = button.top + button.height + 10;
+  if (top + height + 8 > vp.oy + vp.h) top = button.top - 10 - height;
+  return {
+    viewportWidth: vp.w, viewportHeight: vp.h,
+    left: clamp(button.left, vp.ox + 8, vp.ox + vp.w - width - 8),
+    top: clamp(top, vp.oy + 8, vp.oy + vp.h - height - 8),
+  };
 }
 
-export function positionPanelSmart(I: Instance): void {
-  const btn   = ROOT_DOC.getElementById("lia-hl-btn");
-  const panel = ROOT_DOC.getElementById("lia-hl-panel") as HTMLElement | null;
-  if (!btn || !panel) return;
-  if (!(I.state.active && I.state.panelOpen)) return;
-
-  const gap = 10, pad = 8;
-  const r   = btn.getBoundingClientRect();
-  const vp  = getViewport();
-  const sz  = measurePanel(panel);
-
-  let left = r.left;
-  let top  = r.bottom + gap;
-
-  left = clamp(left, pad, vp.w - sz.w - pad);
-
-  if (top + sz.h + pad > vp.h) top = r.top - gap - sz.h;
-  top = clamp(top, pad, vp.h - sz.h - pad);
-
-  panel.style.left = `${Math.round(left + vp.ox)}px`;
-  panel.style.top  = `${Math.round(top  + vp.oy)}px`;
+export function applyPanelPosition(layout: PanelLayout | null): void {
+  const panel = ROOT_DOC.getElementById("lia-hl-panel");
+  if (!panel || !layout) return;
+  setStyle(panel, "--hl-viewport-width", `${layout.viewportWidth}px`);
+  setStyle(panel, "--hl-viewport-height", `${layout.viewportHeight}px`);
+  setStyle(panel, "left", `${layout.left}px`);
+  setStyle(panel, "top", `${layout.top}px`);
 }
 
 export function ensureSwatchesOnce(I: Instance, applyUIFn: () => void): void {
@@ -147,21 +134,22 @@ export function ensureSwatchesOnce(I: Instance, applyUIFn: () => void): void {
 }
 
 export function applyUI(I: Instance): void {
+  const wasPanelOpen = ROOT_DOC.body.classList.contains("lia-hl-panel-open");
   try {
-    ROOT_DOC.body.classList.toggle("lia-hl-active",      !!I.state.active);
-    ROOT_DOC.body.classList.toggle("lia-hl-panel-open",  !!(I.state.active && I.state.panelOpen));
+    toggleClass(ROOT_DOC.body, "lia-hl-active",      !!I.state.active);
+    toggleClass(ROOT_DOC.body, "lia-hl-panel-open",  !!(I.state.active && I.state.panelOpen));
   } catch(e){}
 
   try {
-    CONTENT_DOC.body.classList.toggle("lia-hlq-debug", !!I.debugHLQ);
+    toggleClass(CONTENT_DOC.body, "lia-hlq-debug", !!I.debugHLQ);
   } catch(e){}
 
   const toolMark  = ROOT_DOC.getElementById("hl-tool-mark");
   const toolErase = ROOT_DOC.getElementById("hl-tool-erase");
   const toolExplain = ROOT_DOC.getElementById("hl-tool-explain");
-  if (toolMark)  toolMark.classList.toggle("active",  I.state.tool === "mark");
-  if (toolErase) toolErase.classList.toggle("active", I.state.tool === "erase");
-  if (toolExplain) toolExplain.classList.toggle("active", I.state.tool === "explain");
+  if (toolMark)  toggleClass(toolMark, "active",  I.state.tool === "mark");
+  if (toolErase) toggleClass(toolErase, "active", I.state.tool === "erase");
+  if (toolExplain) toggleClass(toolExplain, "active", I.state.tool === "explain");
 
   const dot = ROOT_DOC.getElementById("lia-hl-dot") as HTMLElement | null;
   if (dot) {
@@ -169,17 +157,17 @@ export function applyUI(I: Instance): void {
     for (const key of ["yellow", "green", "blue", "pink", "orange", "red"]) {
       map[key] = getComputedStyle(CONTENT_DOC.documentElement).getPropertyValue(`--hl-${key}`).trim();
     }
-    dot.style.setProperty("background", map[I.state.color] || map["yellow"], "important");
+    setStyle(dot, "background", map[I.state.color] || map["yellow"], "important");
   }
 
   const colorsEl = ROOT_DOC.getElementById("hl-colors");
   if (colorsEl) {
     Array.from(colorsEl.querySelectorAll(".hl-swatch")).forEach(s => {
-      s.classList.toggle("active", s.getAttribute("data-hl") === I.state.color);
+      toggleClass(s, "active", s.getAttribute("data-hl") === I.state.color);
     });
   }
 
-  if (I.state.active && I.state.panelOpen) {
-    ROOT_WIN.requestAnimationFrame(() => positionPanelSmart(I));
+  if (I.state.active && I.state.panelOpen && !wasPanelOpen) {
+    scheduleHLPosition(I);
   }
 }

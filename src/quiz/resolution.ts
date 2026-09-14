@@ -1,4 +1,5 @@
 import { CONTENT_DOC } from "../dom/context";
+import { isMarkerContentMutation } from "../dom/mutations";
 import { ensureScopeIds } from "../highlight/store";
 import type { Instance } from "../types";
 import { hlqActiveSlideId } from "./eval";
@@ -698,8 +699,10 @@ function ensureResolutionStateObserver(I: Instance): void {
   I.moResolutions = new MutationObserver((records) => {
     if (!I.__alive) return;
     const resolutionStateChanged = records.some((record) =>
-      record.type === "childList" ||
-      (record.target instanceof Element && record.target.matches(".lia-quiz"))
+      (record.type === "childList" && isMarkerContentMutation(record)) ||
+      (record.type === "attributes" && record.target.nodeType === 1 &&
+        (record.target as Element).matches(".lia-quiz") &&
+        record.oldValue !== (record.target as Element).getAttribute("class"))
     );
     if (resolutionStateChanged) {
       ensureMarkerQuizResolutions(I);
@@ -709,6 +712,7 @@ function ensureResolutionStateObserver(I: Instance): void {
   I.moResolutions.observe(CONTENT_DOC.body, {
     attributes: true,
     attributeFilter: ["class"],
+    attributeOldValue: true,
     childList: true,
     subtree: true,
   });

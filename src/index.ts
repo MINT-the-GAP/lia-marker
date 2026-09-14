@@ -8,8 +8,9 @@ import { addHighlightFromSelection, findUserHighlightAtPoint } from "./highlight
 import { ensurePrefills } from "./highlight/prefill";
 import { ensureRevealSlideObserver } from "./slides";
 import { adaptUIVars } from "./theme";
-import { ensureRootButtonAndPanel, positionHLButton, detectNavStack } from "./ui/button";
-import { positionPanelSmart, ensureSwatchesOnce, applyUI, localizePanelText } from "./ui/panel";
+import { ensureRootButtonAndPanel } from "./ui/button";
+import { scheduleHLPosition } from "./ui/position";
+import { ensureSwatchesOnce, applyUI, localizePanelText } from "./ui/panel";
 import { wireRootDelegationOnce, wireUIOnce, wireContentEvents } from "./ui/events";
 import { wireHLQEvents } from "./quiz/events";
 import { ensureMarkerQuizGates } from "./quiz/metadata";
@@ -19,7 +20,11 @@ import { layoutSignature } from "./highlight/render";
 import { getActiveSlideId, slideIdFromNode, getSlideCandidates } from "./slides";
 import { packedRectsFromRange } from "./dom/rects";
 import { rangeFromAnchor } from "./dom/ranges";
-import { clearOverlays, isOverlayMutation, mountOverlay, removeOverlays } from "./highlight/overlay";
+import { clearOverlays, mountOverlay, removeOverlays } from "./highlight/overlay";
+import {
+  hasExternalAttributeChange, isExternalStylesheetMutation,
+  isMarkerContentMutation, isMarkerStructureMutation,
+} from "./dom/mutations";
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 const REGKEY = "__LIA_TEXTMARKER_REG_V4__";
@@ -33,6 +38,7 @@ const DOC_ID =
 
 function stopInstance(instance: Instance, timerWindow: Window): void {
   try { instance.moSlides?.disconnect(); } catch(e){}
+  try { if (typeof instance.__cleanupPosition === "function") instance.__cleanupPosition(); } catch(e){}
   try { instance.__cleanupQuizGates?.(); } catch(e){}
   try { instance.__cleanupResolutions?.(); } catch(e){}
   try { instance.__alive = false; } catch(e){}
@@ -116,7 +122,10 @@ const I: Instance = REG.instances[DOC_ID] = {
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 function ensureStyle(doc: Document, id: string, css: string): void {
   const old = doc.getElementById(id);
-  if (old) { old.textContent = css; return; }
+  if (old) {
+    if (old.textContent !== css) old.textContent = css;
+    return;
+  }
   const st = doc.createElement("style");
   st.id = id;
   st.textContent = css;
@@ -238,9 +247,10 @@ CONTENT_DOC.addEventListener("scroll", () => {
   if (getSlideCandidates().length >= 2 && getActiveSlideId() !== I.__activeSlide) scheduleRender();
 }, { passive: true, capture: true });
 CONTENT_WIN.addEventListener("resize", () => {
-  adaptUIVars();
-  checkLayoutAndRecalc(I, render, overlay);
-  doRender();
+  if (!I.__alive) return;
+  scheduleThemeUpdate();
+  scheduleRender();
+  scheduleHLPosition(I);
 });
 
 // ─── Content interaction ──────────────────────────────────────────────────────
@@ -259,29 +269,85 @@ wireContentEvents(
 wireHLQEvents(I, doRender);
 
 // ─── Position helpers ─────────────────────────────────────────────────────────
-function runHLPositionNow(): void {
-  detectNavStack();
-  positionHLButton();
-  positionPanelSmart(I);
+// Theme updates are independent of content initialization and share a pending
+// flag, so several source mutations in one turn cause only one style pass.
+let themeDirty = true;
+let themePending = false;
+const themeSources = new Map<Element, boolean>();
+
+function updateTheme(): void {
+  if (!I.__alive || !themeDirty) return;
+  themeDirty = false;
+  adaptUIVars();
+  localizePanelText();
+  applyUI(I);
+  scheduleHLPosition(I);
+}
+
+function scheduleThemeUpdate(): void {
+  if (!I.__alive) return;
+  themeDirty = true;
+  if (themePending) return;
+  themePending = true;
+  ROOT_WIN.requestAnimationFrame(() => {
+    themePending = false;
+    updateTheme();
+  });
+}
+
+function refreshThemeSources(): void {
+  if (!I.moTheme) return;
+  const wanted = new Map<Element, boolean>();
+  for (const doc of new Set([ROOT_DOC, CONTENT_DOC])) {
+    wanted.set(doc.documentElement, false);
+    if (doc.body) wanted.set(doc.body, false);
+  }
+  const main = CONTENT_DOC.querySelector("main:not([hidden])") ||
+    CONTENT_DOC.querySelector("[role='main']:not([hidden])") || CONTENT_DOC.body;
+  for (let node: Element | null = main; node; node = node.parentElement) {
+    wanted.set(node, false);
+  }
+  for (const header of ROOT_DOC.querySelectorAll("#lia-toolbar-nav, header.lia-header")) {
+    wanted.set(header, true);
+  }
+  if (wanted.size === themeSources.size &&
+      Array.from(wanted).every(([node, subtree]) => themeSources.get(node) === subtree)) return;
+  I.moTheme.disconnect();
+  themeSources.clear();
+  for (const [node, subtree] of wanted) {
+    I.moTheme.observe(node, {
+      attributes: true, attributeOldValue: true, subtree,
+      attributeFilter: ["class", "style", "hidden", "data-theme", "data-mode", "data-view", "data-layout", "lang", "data-language"],
+    });
+    themeSources.set(node, subtree);
+  }
+  themeDirty = true;
 }
 
 // ─── Slide sync ───────────────────────────────────────────────────────────────
-let __hlSyncToken = 0;
+let syncPending = false;
+let lastSyncSlide: string | null = null;
 
 function scheduleSync(): void {
-  const token = ++__hlSyncToken;
+  if (!I.__alive || syncPending) return;
+  syncPending = true;
   try { clearOverlays(overlay); } catch(e){}
   const run = () => {
+    syncPending = false;
     if (!I.__alive) return;
-    if (token !== __hlSyncToken) return;
-    // Reveal can change the visible section using attributes alone. Collect
-    // its prefills before the single render, without relying on our own DOM
-    // mutations to trigger another tick.
+    // Reveal also reports ordinary content edits. Track the actual slide
+    // independently of highlight filtering (which uses null for one slide).
+    const activeSlide = getActiveSlideId();
+    const slideChanged = activeSlide !== lastSyncSlide;
+    lastSyncSlide = activeSlide;
     ensurePrefills(I, () => {});
     doRender();
+    refreshThemeSources();
+    updateTheme();
+    if (slideChanged) scheduleHLPosition(I);
   };
-  try { ROOT_WIN.requestAnimationFrame(run); } catch(e){}
-  setTimeout(run, 1);
+  try { ROOT_WIN.requestAnimationFrame(run); }
+  catch(e) { ROOT_WIN.setTimeout(run, 0); }
 }
 
 try { ROOT_WIN.addEventListener("hashchange", () => scheduleSync()); } catch(e){}
@@ -296,23 +362,22 @@ try {
 } catch(e){}
 
 // ─── Tick (boot + DOM observer) ───────────────────────────────────────────────
+let structureDirty = true;
 function tick(): void {
-  if (!I.__alive) return;
-  ensureCSS();
-  normalizeMacroCommaArgs();
-  ensureMarkerQuizResolutions(I);
-  ensureMarkerQuizGates(I);
-  if (I.ticking) return;
+  // Coalesce before any preprocessing or DOM writes, not only before layout.
+  if (!I.__alive || I.ticking) return;
   I.ticking = true;
 
   ROOT_WIN.requestAnimationFrame(() => {
     try {
+      if (!I.__alive) return;
+      ensureCSS();
+      normalizeMacroCommaArgs();
       ensureMarkerQuizResolutions(I);
       ensureMarkerQuizGates(I);
       ensureRootButtonAndPanel();
       localizePanelText();
       wireRootDelegationOnce(I, doRender);
-      runHLPositionNow();
       if (overlay.parentElement !== getContentRoot()) doRender();
       ensureLayoutResizeObserver(I, render, overlay);
       ensureRevealSlideObserver(I, () => scheduleSync());
@@ -320,9 +385,11 @@ function tick(): void {
       ensureSwatchesOnce(I, () => applyUI(I));
       ensurePrefills(I, doRender);
       wireUIOnce(I, doRender);
-      adaptUIVars();
+      refreshThemeSources();
+      updateTheme();
       applyUI(I);
-      positionPanelSmart(I);
+      if (structureDirty) scheduleHLPosition(I);
+      structureDirty = false;
     } finally {
       I.ticking = false;
     }
@@ -330,17 +397,31 @@ function tick(): void {
 }
 
 try {
-  I.moDock = new MutationObserver(records => {
-    if (records.every(isOverlayMutation)) return;
-    tick();
+  I.moDock = new ROOT_WIN.MutationObserver(records => {
+    if (!I.__alive) return;
+    const structureChanged = records.some(isMarkerStructureMutation);
+    if (structureChanged) structureDirty = true;
+    if (structureChanged || records.some(isMarkerContentMutation)) tick();
+    if (records.some(isExternalStylesheetMutation)) scheduleThemeUpdate();
   });
-  I.moDock.observe(ROOT_DOC.body, { childList: true, subtree: true });
+  // An embedded content document is not part of the root document's subtree.
+  for (const doc of new Set([ROOT_DOC, CONTENT_DOC])) {
+    I.moDock.observe(doc.documentElement, { childList: true, subtree: true });
+    doc.addEventListener("load", event => {
+      if (!I.__alive) return;
+      const target = event.target as Element | null;
+      if (target?.nodeType === 1 && target.matches('link[rel="stylesheet"]')) scheduleThemeUpdate();
+    }, true);
+  }
 } catch(e){}
 
 try {
-  I.moTheme = new MutationObserver(() => { adaptUIVars(); applyUI(I); runHLPositionNow(); });
-  I.moTheme.observe(ROOT_DOC.documentElement, { attributes: true, attributeFilter: ["class","data-theme","data-mode","data-view","data-layout"] });
-  I.moTheme.observe(ROOT_DOC.body,            { attributes: true, attributeFilter: ["class","data-theme","data-mode","data-view","data-layout"] });
+  I.moTheme = new ROOT_WIN.MutationObserver(records => {
+    if (!I.__alive || !records.some(hasExternalAttributeChange)) return;
+    refreshThemeSources();
+    scheduleThemeUpdate();
+  });
+  refreshThemeSources();
 } catch(e){}
 
 // ─── Layout timer ─────────────────────────────────────────────────────────────

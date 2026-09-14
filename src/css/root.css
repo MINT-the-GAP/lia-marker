@@ -8,7 +8,7 @@
   --hl-z: 9999999;
 }
 
-/* ── Overlay & inline slot ── */
+/* Fixed origin in ROOT_DOC layout-viewport coordinates. */
 #lia-hl-ui-overlay-v1 {
   position: fixed !important;
   z-index: var(--hl-z) !important;
@@ -17,42 +17,7 @@
   pointer-events: none !important;
 }
 
-#lia-hl-inline-slot-v1 {
-  position: relative !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  width: 40px !important; min-width: 40px !important; max-width: 40px !important;
-  height: 40px !important; min-height: 40px !important;
-  flex: 0 0 40px !important;
-  margin: 0 !important; padding: 0 !important;
-  overflow: visible !important;
-  pointer-events: none !important;
-}
-#lia-hl-inline-slot-v1 > #lia-hl-btn {
-  position: relative !important;
-  left: auto !important;
-  top: auto !important;
-  margin: 0 !important;
-}
-
-/* ── Nav-stack mode ── */
-body.lia-hl-navstack #lia-toolbar-nav .lia-header__left {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  justify-content: flex-start !important;
-  width: 32px !important; min-width: 32px !important;
-  gap: 6px !important;
-  overflow: visible !important;
-}
-body.lia-hl-navstack #lia-hl-inline-slot-v1 {
-  width: 32px !important; min-width: 32px !important; max-width: 32px !important;
-  height: 32px !important; min-height: 32px !important;
-  flex: 0 0 32px !important;
-}
-
-/* ── Button ── */
+/* Button sizes are shared with measureHLButton in ui/button.ts. */
 #lia-hl-btn {
   position: absolute !important;
   pointer-events: auto !important;
@@ -116,13 +81,16 @@ body.lia-hl-navstack.lia-hl-active #lia-hl-btn {
   position: fixed !important;
   z-index: var(--hl-z) !important;
   display: none !important;
-  width: 130px !important;
+  box-sizing: border-box !important;
+  width: 132px !important;
+  max-width: max(0px, calc(var(--hl-viewport-width, 100vw) - 16px)) !important;
+  max-height: max(0px, calc(var(--hl-viewport-height, 100vh) - 16px)) !important;
   border-radius: 12px !important;
   border: 1px solid var(--hl-ui-border) !important;
   background-color: var(--hl-ui-bg) !important;
   box-shadow: var(--hl-ui-shadow) !important;
   backdrop-filter: blur(6px);
-  overflow: hidden !important;
+  overflow: auto !important;
 }
 body.lia-hl-panel-open #lia-hl-panel { display: block !important; }
 #lia-hl-panel .hdr  { display: none !important; }

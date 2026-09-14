@@ -1,10 +1,6 @@
 import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC } from "../dom/context";
 import type { Instance } from "../types";
-import { applyUI, positionPanelSmart } from "./panel";
-import {
-  detectNavStack, positionHLButton,
-  scheduleHLRepositionBurst, scheduleHLRepositionBurstThrottled
-} from "./button";
+import { applyUI } from "./panel";
 import { clearSlide } from "../highlight/store";
 import { recalcAllHighlights } from "../highlight/render";
 
@@ -70,18 +66,13 @@ function wordRangeFromPoint(x: number, y: number): Range | null {
   }
 }
 
-function runHLPositionNow(I: Instance): void {
-  detectNavStack();
-  positionHLButton();
-  positionPanelSmart(I);
-}
-
 export function wireRootDelegationOnce(I: Instance, renderFn: RenderFn): void {
   if (I.__rootDelegated) return;
   I.__rootDelegated = true;
 
   let last = 0;
   function safeToggle(): void {
+    if (!I.__alive) return;
     const now = Date.now();
     if (now - last < 250) return;
     last = now;
@@ -115,7 +106,7 @@ export function wireRootDelegationOnce(I: Instance, renderFn: RenderFn): void {
   }, { capture: true, passive: false });
 
   ROOT_DOC.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
+    if (!I.__alive || e.key !== "Escape") return;
     if (!I.state.active) return;
     I.state.active    = false;
     I.state.panelOpen = false;
@@ -128,22 +119,6 @@ export function wireUIOnce(I: Instance, renderFn: RenderFn): void {
   const btn = ROOT_DOC.getElementById("lia-hl-btn") as HTMLElement & { __liaHLWired?: boolean } | null;
   if (!btn || btn.__liaHLWired) return;
   btn.__liaHLWired = true;
-
-  if (!I.__hlTOCWired) {
-    I.__hlTOCWired = true;
-
-    ROOT_DOC.addEventListener("click", (e) => {
-      if (!(e.target as Element)?.closest?.("#lia-btn-toc")) return;
-      scheduleHLRepositionBurst(I, () => runHLPositionNow(I));
-    }, true);
-
-    const toc = ROOT_DOC.getElementById("lia-toc");
-    if (toc) {
-      for (const evt of ["transitionrun", "transitionstart", "transitionend"]) {
-        toc.addEventListener(evt, () => scheduleHLRepositionBurstThrottled(I, () => runHLPositionNow(I)), true);
-      }
-    }
-  }
 
   btn.addEventListener("click", () => {
     if (!I.state.active) {
@@ -196,18 +171,6 @@ export function wireUIOnce(I: Instance, renderFn: RenderFn): void {
     }
   });
 
-  ROOT_WIN.addEventListener("resize", () => {
-    scheduleHLRepositionBurstThrottled(I, () => runHLPositionNow(I));
-  });
-
-  if (ROOT_WIN.visualViewport) {
-    ROOT_WIN.visualViewport.addEventListener("resize", () => {
-      scheduleHLRepositionBurstThrottled(I, () => runHLPositionNow(I));
-    });
-    ROOT_WIN.visualViewport.addEventListener("scroll", () => {
-      scheduleHLRepositionBurstThrottled(I, () => runHLPositionNow(I));
-    });
-  }
 }
 
 export function wireContentEvents(

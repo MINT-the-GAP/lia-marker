@@ -1,5 +1,5 @@
 import { ROOT_WIN, ROOT_DOC } from "../dom/context";
-import type { Instance } from "../types";
+import { setStyle, toggleClass } from "./style";
 
 const HL_UI_OVERLAY_ID = "lia-hl-ui-overlay-v1";
 const HL_INLINE_SLOT_ID = "lia-hl-inline-slot-v1";
@@ -21,37 +21,6 @@ export function findTOCButtonInLeft(left: Element | null): Element | null {
   return pick || btns[0];
 }
 
-function getHLTOCButtonRect(): DOMRect | null {
-  const tocBtn = ROOT_DOC.getElementById("lia-btn-toc") || findTOCButtonInLeft(findHeaderLeft());
-  if (!tocBtn) return null;
-  try {
-    const r = tocBtn.getBoundingClientRect();
-    if (!r || r.width < 6 || r.height < 6) return null;
-    return r;
-  } catch (e) { return null; }
-}
-
-function isHLStackPeerVisible(el: Element | null): boolean {
-  if (!el) return false;
-  try {
-    const cs = ROOT_WIN.getComputedStyle(el);
-    if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return false;
-    const r = el.getBoundingClientRect();
-    return !!(r && r.width > 4 && r.height > 4);
-  } catch (e) { return false; }
-}
-
-function getHLNightlyStackIndex(): number {
-  const order = ["lia-tff-btn-v2", "lia-hl-btn"];
-  let idx = 0;
-  for (const id of order) {
-    if (id === "lia-hl-btn") return idx;
-    const el = ROOT_DOC.getElementById(id);
-    if (isHLStackPeerVisible(el)) idx++;
-  }
-  return idx;
-}
-
 export function shouldUseHLNightlyStackDock(): boolean {
   const canvas = ROOT_DOC.querySelector(".lia-canvas");
   if (!canvas) return false;
@@ -68,106 +37,88 @@ export function ensureHLUIOverlay(): HTMLElement {
   return overlay;
 }
 
-function ensureHLInlineSlot(): HTMLElement | null {
-  const left = findHeaderLeft();
-  if (!left) return null;
-
-  let slot = ROOT_DOC.getElementById(HL_INLINE_SLOT_ID);
-  if (!slot) {
-    slot = ROOT_DOC.createElement("div");
-    slot.id = HL_INLINE_SLOT_ID;
-  }
-
-  const tocBtn = ROOT_DOC.getElementById("lia-btn-toc") || findTOCButtonInLeft(left);
-
-  if (tocBtn && tocBtn.parentNode === left) {
-    if (slot.parentNode !== left) {
-      if (tocBtn.nextSibling) left.insertBefore(slot, tocBtn.nextSibling);
-      else left.appendChild(slot);
-    } else if (slot.previousSibling !== tocBtn) {
-      if (tocBtn.nextSibling) left.insertBefore(slot, tocBtn.nextSibling);
-      else left.appendChild(slot);
-    }
-  } else if (slot.parentNode !== left) {
-    left.insertBefore(slot, left.firstChild || null);
-  }
-
-  return slot;
+export interface Viewport { w: number; h: number; ox: number; oy: number; }
+export interface ButtonLayout {
+  left: number; top: number; width: number; height: number; stacked: boolean;
 }
-
-function placeHLButtonInCorrectHost(): void {
-  const btn = ROOT_DOC.getElementById("lia-hl-btn");
-  const overlay = ensureHLUIOverlay();
-  if (!btn || !overlay) return;
-
-  if (btn.parentNode !== overlay) overlay.appendChild(btn);
-
-  const slot = ROOT_DOC.getElementById(HL_INLINE_SLOT_ID);
-  if (slot && slot.parentNode) slot.parentNode.removeChild(slot);
-
-  overlay.style.left = "0px";
-  overlay.style.top = "0px";
-  btn.style.left = "";
-  btn.style.top = "";
-}
+interface AnchorRect { left: number; top: number; right: number; bottom: number; width: number; height: number; }
+const lastAnchors = new Map<boolean, AnchorRect>();
+let inlinePeerExtent = 46;
+let layoutSize = "";
 
 export function clamp(v: number, a: number, b: number): number {
   return Math.max(a, Math.min(b, v));
 }
 
-export function getViewport(): { w: number; h: number; ox: number; oy: number } {
+export function getViewport(): Viewport {
   const vv = ROOT_WIN.visualViewport;
-  if (vv) return { w: vv.width, h: vv.height, ox: vv.offsetLeft || 0, oy: vv.offsetTop || 0 };
+  if (vv) return { w: vv.width, h: vv.height, ox: vv.offsetLeft, oy: vv.offsetTop };
   const de = ROOT_DOC.documentElement;
   return { w: de.clientWidth, h: de.clientHeight, ox: 0, oy: 0 };
 }
 
-export function positionHLButton(): void {
-  const btn = ROOT_DOC.getElementById("lia-hl-btn");
-  const overlay = ensureHLUIOverlay();
-  if (!btn || !overlay) return;
-
-  placeHLButtonInCorrectHost();
-
-  const vp = getViewport();
-  const pad = 8, gap = 8;
-
-  let bw = 40, bh = 40;
-  try {
-    const br = btn.getBoundingClientRect();
-    if (br && br.width > 6 && br.height > 6) { bw = br.width; bh = br.height; }
-  } catch (e) { }
-
-  let left = pad, top = pad;
-  const tocRect = getHLTOCButtonRect();
-
-  if (tocRect) {
-    if (shouldUseHLNightlyStackDock()) {
-      const stackIndex = getHLNightlyStackIndex();
-      const stackGap = 6, stackPitch = 28;
-      left = tocRect.left + (tocRect.width - bw) / 2;
-      top = tocRect.bottom + stackGap + stackIndex * stackPitch;
-    } else {
-      left = tocRect.right + gap;
-      top = tocRect.top + (tocRect.height - bh) / 2;
+function readAnchor(stacked: boolean): AnchorRect | null {
+  // Every anchor belongs to ROOT_DOC, as do the fixed UI hosts. CONTENT_DOC
+  // rectangles must never enter this calculation without a frame conversion.
+  const toc = ROOT_DOC.getElementById("lia-btn-toc") || findTOCButtonInLeft(findHeaderLeft());
+  const anchor = toc || findHeaderLeft();
+  if (anchor) {
+    const style = ROOT_WIN.getComputedStyle(anchor);
+    const r = anchor.getBoundingClientRect();
+    // Being outside the visual viewport (or fading) does not change strategy.
+    if (style.display !== "none" && style.visibility !== "hidden" && r.width > 6 && r.height > 6) {
+      const rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+      lastAnchors.set(stacked, rect);
+      return rect;
     }
-  } else {
-    const leftHost = findHeaderLeft();
-    const hostRect = leftHost ? leftHost.getBoundingClientRect() : null;
-    if (hostRect) { left = hostRect.left + 8; top = hostRect.top + 8; }
   }
-
-  left = clamp(left, pad, vp.w - bw - pad);
-  top = clamp(top, pad, vp.h - bh - pad);
-
-  overlay.style.left = `${Math.round(vp.ox)}px`;
-  overlay.style.top = `${Math.round(vp.oy)}px`;
-  btn.style.left = `${Math.round(left)}px`;
-  btn.style.top = `${Math.round(top)}px`;
+  // A temporarily hidden/replaced toolbar keeps its last layout anchor.
+  return lastAnchors.get(stacked) || null;
 }
 
-export function detectNavStack(): void {
-  ROOT_DOC.body.classList.toggle("lia-hl-navstack", shouldUseHLNightlyStackDock());
+/** Read only. All coordinates and lengths are ROOT_DOC layout-viewport CSS px. */
+export function measureHLButton(vp: Viewport): ButtonLayout {
+  const currentSize = `${ROOT_DOC.documentElement.clientWidth},${ROOT_DOC.documentElement.clientHeight}`;
+  if (currentSize !== layoutSize) {
+    // A genuine layout resize invalidates hidden anchor geometry. Pinch/pan
+    // changes visualViewport only and must not clear this stable anchor.
+    lastAnchors.clear();
+    layoutSize = currentSize;
+  }
+  const stacked = shouldUseHLNightlyStackDock();
+  // These dimensions are the explicit sizes in root.css, independent of the
+  // previous frame's navstack class and of lia-board-mode's animation frame.
+  const size = stacked ? 22 : 40;
+  const anchor = readAnchor(stacked);
+  const peer = ROOT_DOC.getElementById("lia-tff-btn-v2");
+  const slot = ROOT_DOC.getElementById("lia-tff-inline-slot-v2");
+  const hasPeer = !!(peer || slot);
+  if (!hasPeer) inlinePeerExtent = 46;
+  if (!stacked && slot && anchor && slot.parentElement === findHeaderLeft()) {
+    const r = slot.getBoundingClientRect();
+    // The permanent inline slot is normal-flow layout, not a peer button's
+    // potentially stale absolute position. Keep its extent while it is hidden.
+    if (r.width > 6 && r.right > anchor.right && Math.abs(r.top - anchor.top) < anchor.height) {
+      inlinePeerExtent = r.right - anchor.right;
+    }
+  }
+  const lane = hasPeer ? (stacked ? 28 : inlinePeerExtent) : 0;
+  let left = anchor ? (stacked ? anchor.left + (anchor.width - size) / 2 : anchor.right + 8) : vp.ox + 8;
+  let top = anchor ? (stacked ? anchor.bottom + 6 : anchor.top + (anchor.height - size) / 2) : vp.oy + 8;
+  // Clamp the whole reserved group, so the second tool cannot collapse onto
+  // the first at an edge. Offsets occur exactly once: in these layout bounds.
+  left = clamp(left, vp.ox + 8, vp.ox + vp.w - size - (stacked ? 0 : lane) - 8);
+  top = clamp(top, vp.oy + 8, vp.oy + vp.h - size - (stacked ? lane : 0) - 8);
+  return { left: left + (stacked ? 0 : lane), top: top + (stacked ? lane : 0), width: size, height: size, stacked };
+}
+
+/** Write only; panel geometry has already been measured using this layout. */
+export function applyHLButton(layout: ButtonLayout): void {
+  const btn = ROOT_DOC.getElementById("lia-hl-btn");
+  if (!btn) return;
+  toggleClass(ROOT_DOC.body, "lia-hl-navstack", layout.stacked);
+  setStyle(btn, "left", `${layout.left}px`);
+  setStyle(btn, "top", `${layout.top}px`);
 }
 
 export function ensureRootButtonAndPanel(): void {
@@ -230,39 +181,10 @@ export function ensureRootButtonAndPanel(): void {
     ROOT_DOC.body.appendChild(panel);
   }
 
-  placeHLButtonInCorrectHost();
-}
-
-function clearHLPosTimers(I: Instance): void {
-  try {
-    if (!I.posTimers) I.posTimers = [];
-    while (I.posTimers.length) ROOT_WIN.clearTimeout(I.posTimers.pop()!);
-  } catch (e) { }
-}
-
-export function scheduleHLRepositionBurst(
-  I: Instance,
-  positionFn: () => void
-): void {
-  clearHLPosTimers(I);
-  positionFn();
-
-  ROOT_WIN.requestAnimationFrame(() => {
-    ROOT_WIN.requestAnimationFrame(() => { positionFn(); });
-  });
-
-  const delays = [10, 20, 30];
-  for (const ms of delays) {
-    I.posTimers.push(ROOT_WIN.setTimeout(() => { positionFn(); }, ms));
-  }
-}
-
-export function scheduleHLRepositionBurstThrottled(
-  I: Instance,
-  positionFn: () => void
-): void {
-  const now = Date.now();
-  if (now - (I.lastBurstAt || 0) < 80) return;
-  I.lastBurstAt = now;
-  scheduleHLRepositionBurst(I, positionFn);
+  if (btn.parentNode !== overlayRoot) overlayRoot.appendChild(btn);
+  // One-time migration from older inline/translated hosts. Never reset these
+  // positions during a measurement or a viewport event.
+  ROOT_DOC.getElementById(HL_INLINE_SLOT_ID)?.remove();
+  setStyle(overlayRoot, "left", "0px");
+  setStyle(overlayRoot, "top", "0px");
 }
