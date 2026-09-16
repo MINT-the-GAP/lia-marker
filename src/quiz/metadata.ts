@@ -76,7 +76,15 @@ function thresholdForQuiz(
 ): number | null {
   // LiaScript has already configured this native quiz itself. Do not add a
   // second gate in the layout where the authored comment reached the quiz.
-  if (quiz.hasAttribute(attribute)) return null;
+  if (quiz.hasAttribute(attribute)) {
+    // Exterior hints are added after LiaScript parsed the quiz, so its native
+    // attempt gate cannot manage this generated control.
+    if (attribute === "data-hint-button" &&
+        ownedQuizControl(quiz, ".lia-quiz__hint")?.hasAttribute("data-hlq-hint-control")) {
+      return parseGateThreshold(quiz.getAttribute(attribute));
+    }
+    return null;
+  }
   return parseGateThreshold(scope.getAttribute(attribute));
 }
 

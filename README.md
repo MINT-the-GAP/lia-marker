@@ -146,6 +146,31 @@ Musterlösungstext
 Musterlösungstext
 **************
 
+Quiz metadata may appear before the task label or directly before
+`<div class="markerquiz">`. Hints written after `</div>` are also supported;
+the hint and the following solution block belong to that marker quiz, including
+inside raw `dynFlex` wrappers:
+
+```markdown
+**__$a)\;\;$__**
+
+<!-- data-solution-timer="180s" data-solution-timer-start="oncheck" data-solution-timer-badge="off" data-hint-button="2" data-solution-button="3" -->
+<div class="markerquiz">
+@markpink(Am Nachmittag) @markblue(probt) @markred(die Theatergruppe).
+
+@TextmarkerQuiz
+</div>
+[[?]] Frage: Wann probt wer?
+****************
+@Energiekiste(2; anker)
+****************
+```
+
+This example requires direct imports of `lia-timer` and `lia-loot` as well as
+`lia-marker`. The hint becomes available after two failed checks; Resolve
+requires three failed checks and the timer to expire. The reward stays hidden
+until a correct Check or Resolve.
+
 The optional solution works with every target macro:
 `@markred`, `@markblue`, `@markgreen`, `@markyellow`, `@markpink`,
 `@markorange`, and the any-color variant `@mark`.

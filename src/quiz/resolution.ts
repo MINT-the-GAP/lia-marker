@@ -4,6 +4,7 @@ import { ensureScopeIds } from "../highlight/store";
 import type { Instance } from "../types";
 import { hlqActiveSlideId } from "./eval";
 import { ensureMarkerQuizGates } from "./metadata";
+import { EXTERIOR_HINT_ATTR, cleanupMarkerQuizHints, ensureMarkerQuizHints } from "./hints";
 import {
   cleanupDeferredLootSolutionPortals,
   ensureDeferredLootSolutionPortals,
@@ -45,7 +46,9 @@ interface InlineResolutionState {
 interface MetadataArtifactState {
   scope: Element;
   parent: Element;
-  wrapper: HTMLElement;
+  isCurrent: () => boolean;
+  attributes: string[];
+  restore: () => void;
 }
 
 interface ResolutionBinding {
@@ -88,7 +91,10 @@ function findClosingDelimiter(opening: Element): Element | null {
 type CollectedResolution = Omit<ResolutionBinding, "key" | "controls">;
 
 function collectElementResolution(scopeEl: Element): CollectedResolution | null {
-  const opening = scopeEl.nextElementSibling;
+  let opening = scopeEl.nextElementSibling;
+  while (opening?.hasAttribute(EXTERIOR_HINT_ATTR)) {
+    opening = opening.nextElementSibling;
+  }
   if (!opening || !isAsteriskDelimiter(opening)) return null;
 
   const closing = findClosingDelimiter(opening);
@@ -182,7 +188,9 @@ function isInlineBoundary(node: Node): boolean {
 function firstSignificantTextGroup(scopeEl: Element): TextGroup | null {
   let node: Node | null = scopeEl.nextSibling;
   while (node) {
-    if (node.nodeType === Node.COMMENT_NODE) {
+    if (node.nodeType === Node.COMMENT_NODE ||
+        (node.nodeType === Node.ELEMENT_NODE &&
+          (node as Element).hasAttribute(EXTERIOR_HINT_ATTR))) {
       node = node.nextSibling;
       continue;
     }
@@ -370,26 +378,19 @@ function collectResolution(scopeEl: Element): CollectedResolution | null {
   return null;
 }
 
-function unwrapElement(element: Element): void {
-  const parent = element.parentNode;
-  if (!parent) return;
-  while (element.firstChild) parent.insertBefore(element.firstChild, element);
-  element.remove();
-  parent.normalize();
-}
-
 interface MetadataBoundary {
   node: Text;
   offset: number;
 }
 
-function serializedMetadataCandidate(scopeEl: Element): {
+function serializedMetadataCandidate(nodes: Node[]): {
   start: MetadataBoundary;
   end: MetadataBoundary;
+  text: string;
 } | null {
   const parts: Array<{ node: Text; start: number; end: number }> = [];
   let text = "";
-  for (const child of Array.from(scopeEl.childNodes)) {
+  for (const child of nodes) {
     const start = text.length;
     const chunk = child.textContent || "";
     text += chunk;
@@ -419,17 +420,91 @@ function serializedMetadataCandidate(scopeEl: Element): {
   return {
     start: { node: startPart.node, offset: startOffset - startPart.start },
     end: { node: endPart.node, offset: endOffset - endPart.start },
+    text: text.slice(startOffset, endOffset),
   };
+}
+
+function copySerializedMetadata(scope: Element, text: string): string[] {
+  const attributes: string[] = [];
+  const pattern = /\b(data-(?:solution-timer(?:-(?:start|badge))?|hint-button|solution-button))\s*=\s*(?:"([^"]*)"|'([^']*)'|\u201c([^\u201d]*)\u201d|\u201e([^\u201c]*)\u201c|\u2018([^\u2019]*)\u2019|([^\s>]+))/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    const name = match[1].toLowerCase();
+    if (scope.hasAttribute(name)) continue;
+    scope.setAttribute(name, match.slice(2).find((value) => value !== undefined) || "");
+    attributes.push(name);
+  }
+  return attributes;
 }
 
 function ensureSerializedMetadataHidden(scopeEl: Element): void {
   const known = metadataArtifactsByScope.get(scopeEl);
-  if (known?.wrapper.isConnected && known.wrapper.parentElement === known.parent) return;
-  if (known) metadataArtifactsByScope.delete(scopeEl);
+  if (known?.isCurrent()) return;
+  if (known) cleanupMetadataArtifact(known);
 
-  const candidate = serializedMetadataCandidate(scopeEl);
+  // Raw layout wrappers may serialize the comment immediately before the
+  // marker scope. Only inspect its adjacent text, never a preceding quiz.
+  const preceding: Node[] = [];
+  let sibling = scopeEl.previousSibling;
+  while (sibling && (sibling.nodeType === Node.TEXT_NODE ||
+      (sibling.nodeType === Node.ELEMENT_NODE &&
+        (sibling as Element).matches("span:not(.markerquiz):not(.lia-quiz)") &&
+        !(sibling as Element).querySelector(".markerquiz,.lia-quiz,button,input")))) {
+    preceding.unshift(sibling);
+    sibling = sibling.previousSibling;
+  }
+  const outside = serializedMetadataCandidate(preceding);
+  const candidate = outside || serializedMetadataCandidate(Array.from(scopeEl.childNodes));
   if (!candidate) return;
 
+  const parent = candidate.start.node.parentElement;
+  if (!parent || candidate.end.node.parentElement !== parent) return;
+  const originalChildren = Array.from(parent.childNodes);
+  const originals = originalChildren.slice(
+    originalChildren.indexOf(candidate.start.node),
+    originalChildren.indexOf(candidate.end.node) + 1,
+  );
+  const originalText = originals.filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => ({ node: node as Text, data: (node as Text).data }));
+  const following = candidate.end.node.nextSibling;
+  if (outside) {
+    // Preserve Elm's exact child indices. External comments are tokenized into
+    // many sibling text nodes, so wrapping them would shift the raw quiz node.
+    const hiddenText = originalText.map(({ node, data }) => {
+      const start = node === candidate.start.node ? candidate.start.offset : 0;
+      const end = node === candidate.end.node ? candidate.end.offset : data.length;
+      const hidden = data.slice(0, start) + data.slice(end);
+      node.data = hidden;
+      return { node, data, hidden };
+    });
+    const hiddenElements = originals.filter((node) => node.nodeType === Node.ELEMENT_NODE)
+      .map((node) => {
+        const element = node as Element;
+        const hidden = element.getAttribute("hidden");
+        const hadClass = element.classList.contains(METADATA_ARTIFACT_CLASS);
+        element.setAttribute("hidden", "");
+        element.classList.add(METADATA_ARTIFACT_CLASS);
+        return { element, hidden, hadClass };
+      });
+    metadataArtifactsByScope.set(scopeEl, {
+      scope: scopeEl,
+      parent,
+      attributes: copySerializedMetadata(scopeEl, outside.text),
+      isCurrent: () => originals.every((node) => node.parentNode === parent) &&
+        hiddenText.every(({ node, hidden }) => node.data === hidden),
+      restore() {
+        hiddenText.forEach(({ node, data, hidden }) => {
+          if (node.data === hidden) node.data = data;
+        });
+        hiddenElements.forEach(({ element, hidden, hadClass }) => {
+          if (hidden === null) element.removeAttribute("hidden");
+          else element.setAttribute("hidden", hidden);
+          if (!hadClass) element.classList.remove(METADATA_ARTIFACT_CLASS);
+        });
+      },
+    });
+    return;
+  }
   const range = CONTENT_DOC.createRange();
   try {
     range.setStart(candidate.start.node, candidate.start.offset);
@@ -440,10 +515,21 @@ function ensureSerializedMetadataHidden(scopeEl: Element): void {
     wrapper.setAttribute("aria-hidden", "true");
     wrapper.appendChild(range.extractContents());
     range.insertNode(wrapper);
+    const generated = Array.from(parent.childNodes)
+      .filter((node) => !originalChildren.includes(node));
     metadataArtifactsByScope.set(scopeEl, {
       scope: scopeEl,
-      parent: scopeEl,
-      wrapper,
+      parent,
+      isCurrent: () => wrapper.isConnected && wrapper.parentElement === parent,
+      attributes: [],
+      restore() {
+        // Elm tracks raw HTML by child index: restore the original text nodes
+        // as well as their text, without normalizing adjacent authored nodes.
+        generated.forEach((node) => node.parentNode?.removeChild(node));
+        originalText.forEach(({ node, data }) => { node.data = data; });
+        const reference = following?.parentNode === parent ? following : null;
+        originals.forEach((node) => parent.insertBefore(node, reference));
+      },
     });
   } catch (_) {
     // Leave unexpected author content untouched if LiaScript changes this DOM.
@@ -451,7 +537,8 @@ function ensureSerializedMetadataHidden(scopeEl: Element): void {
 }
 
 function cleanupMetadataArtifact(state: MetadataArtifactState): void {
-  if (state.wrapper.parentNode) unwrapElement(state.wrapper);
+  state.attributes.forEach((name) => state.scope.removeAttribute(name));
+  state.restore();
   metadataArtifactsByScope.delete(state.scope);
 }
 
@@ -734,10 +821,9 @@ export function ensureMarkerQuizResolutions(I: Instance): void {
       resolutionByScope.delete(scope);
     }
   }
-  for (const scope of scopes) {
-    ensureSerializedMetadataHidden(scope);
-    bindResolution(I, scope);
-  }
+  for (const scope of scopes) ensureSerializedMetadataHidden(scope);
+  ensureMarkerQuizHints(I);
+  for (const scope of scopes) bindResolution(I, scope);
   ensureDeferredLootSolutionPortals(I);
 }
 
@@ -745,6 +831,7 @@ export function cleanupMarkerQuizResolutions(I: Instance): void {
   cleanupDeferredLootSolutionPortals(I);
   for (const binding of resolutionByScope.values()) cleanupBinding(binding);
   resolutionByScope.clear();
+  cleanupMarkerQuizHints(I);
   for (const artifact of Array.from(metadataArtifactsByScope.values())) {
     cleanupMetadataArtifact(artifact);
   }

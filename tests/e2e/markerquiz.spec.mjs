@@ -564,6 +564,165 @@ __$l)\\;\\;$__ **Numeralien**
   expect(errors).toEqual([]);
 });
 
+for (const [rawLayout, metadataBeforeLabel] of [
+  [false, false], [false, true], [true, false], [true, true],
+]) {
+  test(`supports exterior hints and rewards with metadata ${metadataBeforeLabel ? "before" : "after"} the label${rawLayout ? " in a raw flex layout" : ""}`, async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+    await routeWorkingTree(page);
+    const fixtureUrl = "https://lia-marker.test/exterior-hint.md";
+    const metadata = '<!-- data-solution-timer="180s" data-solution-timer-start="oncheck" data-solution-timer-badge="off" data-hint-button="2" data-solution-button="3" -->';
+    const label = String.raw`**__$a)\;\;$__**`;
+    const source = makeCourse(`
+# Markerquiz mit externem Hinweis
+
+${rawLayout ? '<section class="dynFlex">\n\n<div class="flex-child">' : ""}
+
+${metadataBeforeLabel ? `${metadata}\n${label}` : `${label}\n\n${metadata}`}
+<div class="markerquiz">
+
+@markpink(Am Nachmittag) @markblue(probt) @markred(die Theatergruppe) @markgreen(die neue Szene).
+
+@TextmarkerQuiz
+
+</div>
+[[?]] Frage: Wann probt wer was?
+****************
+@Energiekiste(2; anker)
+****************
+
+${rawLayout ? "</div>\n</section>" : ""}
+`, [timerUrl, lootUrl]);
+    // Serve the authored course locally; no course text is sent to the app host.
+    await page.route(fixtureUrl, route => route.fulfill({
+      body: source,
+      contentType: "text/plain; charset=utf-8",
+      headers: { "access-control-allow-origin": "*" },
+    }));
+    await page.clock.install();
+    await page.goto(`https://liascript.github.io/course/?${fixtureUrl}`);
+    await waitForPlugin(page);
+    await expect.poll(() => page.locator('[data-solution-timer="180s"]')
+      .evaluateAll((elements) => elements.some((element) =>
+        element.dataset.__solTimerArmedSolution === "1"
+      ))).toBe(true);
+
+    const check = page.locator(".lia-quiz__check").first();
+    const hint = page.locator(".lia-quiz__hint").first();
+    const resolve = page.locator(".lia-quiz__resolve").first();
+    const reward = page.locator('[data-loot-chest-button][data-loot-chest-reward="energy"]');
+    await expect(check).toBeVisible();
+    if (!metadataBeforeLabel) await expect(hint).toHaveCount(1);
+    await expect(hint).toBeHidden();
+    await expect(resolve).toBeHidden();
+    await expect(reward).toBeHidden();
+    const visibleText = await page.locator(".lia-slide__content").innerText();
+    expect(visibleText).not.toContain("data-solution-timer");
+    expect(visibleText).not.toContain("[[?]]");
+
+    await check.click();
+    await expect(check).toContainText("1");
+    await expect(hint).toBeHidden();
+    await check.click();
+    await expect(check).toContainText("2");
+    await expect(hint).toBeVisible();
+    await hint.click();
+    await expect(page.getByText("Frage: Wann probt wer was?", { exact: true })).toBeVisible();
+    await expect(reward).toBeHidden();
+    await expect(resolve).toBeHidden();
+    await check.click();
+    await expect(check).toContainText("3");
+    await expect(resolve).toBeHidden();
+    await page.clock.fastForward("03:01");
+    await expect(resolve).toBeVisible();
+    await resolve.click();
+    await expect(reward).toBeVisible();
+    await expect.poll(() => page.evaluate(() => {
+      const registry = window.__LIA_TEXTMARKER_REG_V4__;
+      const instance = Object.values(registry.instances || {}).find((item) => item.__alive);
+      return [...new Set(instance?.HL.filter((item) => item.kind === "solution")
+        .map((item) => item.color) || [])].sort();
+    })).toEqual(["blue", "green", "pink", "red"]);
+    if (!metadataBeforeLabel) {
+      await page.evaluate(() => {
+        const registry = window.__LIA_TEXTMARKER_REG_V4__;
+        for (const instance of Object.values(registry.instances || {})) {
+          instance.__alive = false;
+          instance.__cleanupQuizGates?.();
+          instance.__cleanupResolutions?.();
+        }
+      });
+      await expect(page.locator("[data-hlq-exterior-hint],[data-hlq-hint-control]")).toHaveCount(0);
+      await expect(page.locator(".hlq-resolution,.hlq-metadata-artifact")).toHaveCount(0);
+      await expect(page.locator(".lia-slide__content")).toContainText("[[?]] Frage: Wann probt wer was?");
+      if (rawLayout) {
+        await expect(page.locator(".lia-slide__content")).toContainText("data-solution-timer");
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+}
+
+test("keeps exterior hints and successful solutions scoped to their own quiz", async ({ page }) => {
+  const errors = collectBrowserErrors(page);
+  await routeWorkingTree(page);
+  const fixtureUrl = "https://lia-marker.test/separate-hints.md";
+  await page.route(fixtureUrl, route => route.fulfill({
+    body: makeCourse(`
+# Getrennte Hinweise
+
+**a)**
+
+<!-- data-hint-button="1" -->
+<div class="markerquiz">
+@markred(Erste)
+
+@TextmarkerQuiz
+</div>
+[[?]] Erster Hinweis
+****************
+Erste Belohnung
+****************
+
+**b)**
+
+<!-- data-hint-button="2" -->
+<div class="markerquiz">
+@markblue(Zweite)
+
+@TextmarkerQuiz
+</div>
+[[?]] Zweiter Hinweis
+****************
+Zweite Belohnung
+****************
+`),
+    contentType: "text/plain; charset=utf-8",
+    headers: { "access-control-allow-origin": "*" },
+  }));
+  await page.goto(`https://liascript.github.io/course/?${fixtureUrl}`);
+  await waitForPlugin(page);
+  const checks = page.locator(".lia-quiz__check");
+  const hints = page.locator(".lia-quiz__hint");
+  await expect(hints).toHaveCount(2);
+  await expect(hints.nth(0)).toBeHidden();
+  await expect(hints.nth(1)).toBeHidden();
+  await expect(page.getByText("Erste Belohnung", { exact: true })).toBeHidden();
+  await expect(page.getByText("Zweite Belohnung", { exact: true })).toBeHidden();
+  await checks.nth(0).click();
+  await expect(hints.nth(0)).toBeVisible();
+  await expect(hints.nth(1)).toBeHidden();
+  await hints.nth(0).click();
+  await expect(page.getByText("Erster Hinweis", { exact: true })).toBeVisible();
+  await expect(page.getByText("Zweiter Hinweis", { exact: true })).toBeHidden();
+  await markWholeTarget(page, "red", "red", 1);
+  await checks.nth(0).click();
+  await expect(page.getByText("Erste Belohnung", { exact: true })).toBeVisible();
+  await expect(page.getByText("Zweite Belohnung", { exact: true })).toBeHidden();
+  await expect(hints.nth(1)).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
 test("reveals a weekly-task solution element after a correct Check", async ({ page }) => {
   const { errors } = await openCourse(page, `
 # Wochenaufgabe mit Element
