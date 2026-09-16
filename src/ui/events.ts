@@ -6,6 +6,12 @@ import { recalcAllHighlights } from "../highlight/render";
 
 type RenderFn = () => void;
 
+function isHighlighterUI(target: EventTarget | null): boolean {
+  const node = target as Node | null;
+  const element = node?.nodeType === 1 ? node as Element : node?.parentElement;
+  return !!element?.closest("#lia-hl-btn, #lia-hl-panel");
+}
+
 function isWordChar(ch: string): boolean {
   return /[A-Za-zÀ-ÖØ-öø-ÿĀ-ſƀ-ɏЀ-ӿ'’-]/.test(ch);
 }
@@ -183,6 +189,9 @@ export function wireContentEvents(
   let markSingleTimer: number | null = null;
 
   CONTENT_DOC.addEventListener("mouseup", (e) => {
+    // UI controls handle their own clicks. In Firefox contextmenu can precede
+    // right-button mouseup; that release must not close the palette or mark text.
+    if (e.button !== 0 || isHighlighterUI(e.target)) return;
     const isForeign = !!(e.target as Element)?.closest?.([
       "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
       ".lia-tool-menu", ".lia-annot-btn", ".lia-annot-toolbar"
@@ -222,6 +231,7 @@ export function wireContentEvents(
   }, true);
 
   CONTENT_DOC.addEventListener("dblclick", (e) => {
+    if (e.button !== 0 || isHighlighterUI(e.target)) return;
     const isForeign = !!(e.target as Element)?.closest?.([
       "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
       ".lia-tool-menu", ".lia-annot-btn", ".lia-annot-toolbar"
@@ -255,6 +265,7 @@ export function wireContentEvents(
   }, true);
 
   CONTENT_DOC.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || isHighlighterUI(e.target)) return;
     const isForeign = !!(e.target as Element)?.closest?.([
       "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
       ".lia-tool-menu", ".lia-annot-btn", ".lia-annot-toolbar"
