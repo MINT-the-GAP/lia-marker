@@ -5,7 +5,6 @@ import cssRoot    from "bundle-text:./css/root.css";
 import type { Instance } from "./types";
 import { render, checkLayoutAndRecalc, ensureLayoutResizeObserver } from "./highlight/render";
 import { addHighlightFromSelection, findUserHighlightAtPoint } from "./highlight/store";
-import { ensurePrefills } from "./highlight/prefill";
 import { ensureRevealSlideObserver } from "./slides";
 import { adaptUIVars } from "./theme";
 import { ensureRootButtonAndPanel } from "./ui/button";
@@ -340,7 +339,6 @@ function scheduleSync(): void {
     const activeSlide = getActiveSlideId();
     const slideChanged = activeSlide !== lastSyncSlide;
     lastSyncSlide = activeSlide;
-    ensurePrefills(I, () => {});
     doRender();
     refreshThemeSources();
     updateTheme();
@@ -383,7 +381,7 @@ function tick(): void {
       ensureRevealSlideObserver(I, () => scheduleSync());
       checkLayoutAndRecalc(I, render, overlay);
       ensureSwatchesOnce(I, () => applyUI(I));
-      ensurePrefills(I, doRender);
+      doRender();
       wireUIOnce(I, doRender);
       refreshThemeSources();
       updateTheme();

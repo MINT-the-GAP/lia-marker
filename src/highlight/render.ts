@@ -5,6 +5,7 @@ import { getScrollCtx } from "../dom/scroll";
 import { packedRectsFromRange } from "../dom/rects";
 import { rangeFromAnchor } from "../dom/ranges";
 import { clearOverlays, mountOverlay, overlayForRange } from "./overlay";
+import { ensurePrefills } from "./prefill";
 import { getSlideCandidates, ensureSlideIds, getActiveSlideId, shouldFilterBySlide, slideIdFromNode } from "../slides";
 
 const DEBUG = false;
@@ -34,6 +35,7 @@ export function render(I: Instance, overlay: Element): void {
   clearOverlays(overlay);
 
   ensureSlideIds();
+  ensurePrefills(I);
 
   const filter   = shouldFilterBySlide();
   const activeId = filter ? getActiveSlideId() : null;

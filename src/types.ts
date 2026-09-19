@@ -46,7 +46,7 @@ export interface Instance {
   lastBurstAt: number;
   __layoutSig?: string;
   __layoutTimer?: number;
-  __prefillKeys?: Set<string>;
+  __prefillItems?: WeakMap<Element, HighlightItem>;
   __revealedSolutions?: Set<string>;
   __quizGateAttempts?: Map<string | Element, number>;
   __cleanupPosition?: () => void;
