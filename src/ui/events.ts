@@ -9,7 +9,16 @@ type RenderFn = () => void;
 function isHighlighterUI(target: EventTarget | null): boolean {
   const node = target as Node | null;
   const element = node?.nodeType === 1 ? node as Element : node?.parentElement;
-  return !!element?.closest("#lia-hl-btn, #lia-hl-panel");
+  return !!element?.closest("#lia-hl-btn, #lia-hl-panel, #lia-hl-explain-tip");
+}
+
+function isForeignUI(target: EventTarget | null): boolean {
+  const node = target as Node | null;
+  const element = node?.nodeType === 1 ? node as Element : node?.parentElement;
+  return !!element?.closest([
+    "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
+    ".lia-tool-menu", ".lia-annot-btn", ".lia-annot-toolbar"
+  ].join(","));
 }
 
 function isWordChar(ch: string): boolean {
@@ -187,17 +196,125 @@ export function wireContentEvents(
   eraseAtPointFn: (x: number, y: number) => boolean
 ): void {
   let markSingleTimer: number | null = null;
+  let suppressMouseUntil = 0;
+  type Tap = { id: number; x: number; y: number; time: number; range: Range; tool: Instance["state"]["tool"] };
+  let touchStart: Tap | null = null;
+  let lastTap: Tap | null = null;
+
+  function canSelectWord(): boolean {
+    return I.__alive && I.state.active && (I.state.tool === "mark" || I.state.tool === "explain");
+  }
+
+  function cancelPendingMark(): void {
+    if (markSingleTimer === null) return;
+    ROOT_WIN.clearTimeout(markSingleTimer);
+    markSingleTimer = null;
+  }
+
+  function selectWord(range: Range): boolean {
+    const sel = CONTENT_WIN.getSelection();
+    if (!sel) return false;
+    try {
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function explainSelectedWord(): void {
+    if (!canSelectWord() || I.state.tool !== "explain" || Date.now() < suppressMouseUntil) return;
+    // Do not start the explainer's selection retries for a collapsed first
+    // click: they can race the subsequent double-click and duplicate lookups.
+    const sel = CONTENT_WIN.getSelection();
+    if (sel && !sel.isCollapsed) explainSelectionFn();
+  }
+
+  function resetTouch(): void {
+    touchStart = null;
+    lastTap = null;
+  }
+
+  // Mobile browsers do not reliably emit dblclick or select a word on a
+  // double tap. Resolve the word at the touch point, as for mouse double-clicks.
+  CONTENT_DOC.addEventListener("touchstart", (e) => {
+    touchStart = null;
+    if (!canSelectWord() || isHighlighterUI(e.target) || isForeignUI(e.target)) {
+      lastTap = null;
+      return;
+    }
+    suppressMouseUntil = Date.now() + 800;
+    cancelPendingMark();
+    if (e.touches.length !== 1) { resetTouch(); return; }
+    const target = e.target as Element;
+    if (target.closest?.("input, textarea, select, button, a, code, pre, .hlq-proxy, [contenteditable]:not([contenteditable='false'])")) {
+      lastTap = null;
+      return;
+    }
+    const touch = e.touches[0];
+    const range = wordRangeFromPoint(touch.clientX, touch.clientY);
+    // Caret hit testing may return nearby text even when tapping blank space.
+    if (!range || !Array.from(range.getClientRects()).some(rect =>
+      touch.clientX >= rect.left - 2 && touch.clientX <= rect.right + 2 &&
+      touch.clientY >= rect.top - 2 && touch.clientY <= rect.bottom + 2
+    )) {
+      lastTap = null;
+      return;
+    }
+    touchStart = {
+      id: touch.identifier, x: touch.clientX, y: touch.clientY,
+      time: Date.now(), range, tool: I.state.tool
+    };
+  }, { capture: true, passive: true });
+
+  CONTENT_DOC.addEventListener("touchmove", (e) => {
+    if (!touchStart) return;
+    const touch = e.touches[0];
+    if (e.touches.length !== 1 || touch.identifier !== touchStart.id ||
+        Math.hypot(touch.clientX - touchStart.x, touch.clientY - touchStart.y) > 12) resetTouch();
+  }, { capture: true, passive: true });
+
+  CONTENT_DOC.addEventListener("touchcancel", resetTouch, { capture: true, passive: true });
+  CONTENT_DOC.addEventListener("scroll", resetTouch, { capture: true, passive: true });
+
+  CONTENT_DOC.addEventListener("touchend", (e) => {
+    const start = touchStart;
+    touchStart = null;
+    if (!start) return;
+    const now = Date.now();
+    suppressMouseUntil = now + 800;
+    const touch = e.changedTouches[0];
+    if (!canSelectWord() || I.state.tool !== start.tool || e.touches.length ||
+        !touch || touch.identifier !== start.id || now - start.time > 350 ||
+        Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 12) {
+      lastTap = null;
+      return;
+    }
+    const previous = lastTap;
+    lastTap = { ...start, time: now };
+    if (!previous || previous.tool !== start.tool || now - previous.time > 350 ||
+        Math.hypot(start.x - previous.x, start.y - previous.y) > 24 ||
+        previous.range.startContainer !== start.range.startContainer ||
+        previous.range.startOffset !== start.range.startOffset ||
+        previous.range.endContainer !== start.range.endContainer ||
+        previous.range.endOffset !== start.range.endOffset) return;
+
+    lastTap = null;
+    if (!selectWord(start.range)) return;
+    // Cancel native double-tap zoom and the compatibility mouse events for
+    // this gesture only; ordinary scrolling and pinch zoom retain their defaults.
+    e.preventDefault();
+    if (I.state.panelOpen) { I.state.panelOpen = false; applyUI(I); }
+    if (I.state.tool === "explain") explainSelectionFn();
+    else addHighlightFn();
+  }, { capture: true, passive: false });
 
   CONTENT_DOC.addEventListener("mouseup", (e) => {
     // UI controls handle their own clicks. In Firefox contextmenu can precede
     // right-button mouseup; that release must not close the palette or mark text.
-    if (e.button !== 0 || isHighlighterUI(e.target)) return;
-    const isForeign = !!(e.target as Element)?.closest?.([
-      "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
-      ".lia-tool-menu", ".lia-annot-btn", ".lia-annot-toolbar"
-    ].join(","));
-    if (isForeign) return;
-    if (!I.state.active) return;
+    if (e.button !== 0 || isHighlighterUI(e.target) || isForeignUI(e.target)) return;
+    if (!I.__alive || !I.state.active || Date.now() < suppressMouseUntil) return;
     if (I.state.panelOpen) { I.state.panelOpen = false; applyUI(I); }
     if (I.state.tool === "mark") {
       const clickDetail = (e as MouseEvent).detail || 0;
@@ -220,41 +337,35 @@ export function wireContentEvents(
       return;
     }
     if (I.state.tool === "explain") {
+      if (e.detail >= 2) return;
       // Selection is often not finalized yet during capture-phase mouseup.
       // Defer once to next frame and once via short timeout for reliability.
       ROOT_WIN.requestAnimationFrame(() => {
-        explainSelectionFn();
-        ROOT_WIN.setTimeout(() => { explainSelectionFn(); }, 90);
+        explainSelectedWord();
+        ROOT_WIN.setTimeout(explainSelectedWord, 90);
       });
       return;
     }
   }, true);
 
   CONTENT_DOC.addEventListener("dblclick", (e) => {
-    if (e.button !== 0 || isHighlighterUI(e.target)) return;
-    const isForeign = !!(e.target as Element)?.closest?.([
-      "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
-      ".lia-tool-menu", ".lia-annot-btn", ".lia-annot-toolbar"
-    ].join(","));
-    if (isForeign) return;
-    if (!I.state.active) return;
-    if (I.state.tool !== "mark") return;
+    if (e.button !== 0 || isHighlighterUI(e.target) || isForeignUI(e.target)) return;
+    if (!canSelectWord() || Date.now() < suppressMouseUntil) return;
+    cancelPendingMark();
+
+    const sel = CONTENT_WIN.getSelection();
+    // Native word selection can span inline formatting such as <b>Ap</b>fel.
+    // Preserve that range for explanations; use hit testing only as a fallback.
+    if (I.state.tool === "mark" || !sel || sel.isCollapsed) {
+      const forced = wordRangeFromPoint(e.clientX, e.clientY);
+      if (forced) selectWord(forced);
+    }
+    if (I.state.tool === "explain") {
+      explainSelectedWord();
+      return;
+    }
 
     (I as any).__markDblClickPendingUntil = Date.now() + 500;
-
-    if (markSingleTimer !== null) {
-      ROOT_WIN.clearTimeout(markSingleTimer);
-      markSingleTimer = null;
-    }
-
-    const forced = wordRangeFromPoint((e as MouseEvent).clientX, (e as MouseEvent).clientY);
-    if (forced) {
-      const sel = CONTENT_WIN.getSelection ? CONTENT_WIN.getSelection() : null;
-      try {
-        sel?.removeAllRanges();
-        sel?.addRange(forced);
-      } catch (err) {}
-    }
 
     // Dblclick fires after the browser has finalized word selection.
     addHighlightFn();
@@ -265,13 +376,8 @@ export function wireContentEvents(
   }, true);
 
   CONTENT_DOC.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || isHighlighterUI(e.target)) return;
-    const isForeign = !!(e.target as Element)?.closest?.([
-      "[data-hlq-ignore='1']", "[data-lia-hlq-ignore='1']",
-      ".lia-tool-menu", ".lia-annot-btn", ".lia-annot-toolbar"
-    ].join(","));
-    if (isForeign) return;
-    if (!I.state.active) return;
+    if (e.button !== 0 || isHighlighterUI(e.target) || isForeignUI(e.target)) return;
+    if (!I.__alive || !I.state.active) return;
     if (I.state.tool !== "erase") return;
     recalcAllHighlights(I);
     const hit = eraseAtPointFn(e.clientX, e.clientY);

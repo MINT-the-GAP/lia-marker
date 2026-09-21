@@ -64,7 +64,7 @@ A toolbar button appears in the navigation bar. Click it to open the color picke
 ## Explain Word Mode
 
           --{{0}}--
-The panel includes an `Explain Word` button between color selection and `Clear all`. Activate it, then select exactly one word in the text. A tooltip appears with a short dictionary explanation.
+The panel includes an `Explain Word` button between color selection and `Clear all`. Activate it, then select exactly one word in the text or double-click it. On a touchscreen, double-tap the word, just as when highlighting. A tooltip appears with a short dictionary explanation.
 
 Language detection supports:
 
