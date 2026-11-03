@@ -204,3 +204,48 @@ test("preserves restored user highlights and array identity when refreshing pref
   await expectHighlightOver(page, page.locator(".lia-hl-prefill"), "prefill");
   await expectHighlightOver(page, page.locator("strong"), "user");
 });
+
+test("keeps highlights on the active slide inside a nested dynFlex section", async ({ page }) => {
+  await page.setContent(`
+    <main class="reveal">
+      <div class="slides">
+        <section id="outer-slide" class="present" aria-hidden="false">
+          <section class="dynFlex">
+            <div class="flex-child">
+              <span id="marked-text">Markierter Text</span>
+            </div>
+          </section>
+        </section>
+        <section id="other-slide" aria-hidden="true">Andere Folie</section>
+      </div>
+    </main>
+  `);
+  await page.evaluate(() => {
+    window.Reveal = {
+      getCurrentSlide: () => document.getElementById("outer-slide"),
+    };
+  });
+  await page.addScriptTag({ content: bundleSource });
+
+  await page.locator("#marked-text").evaluate((element) => {
+    const text = element.firstChild;
+    const parts = [];
+    for (let node = text; node !== document.body; node = node.parentNode) {
+      parts.unshift(Array.prototype.indexOf.call(node.parentNode.childNodes, node));
+    }
+    const path = parts.join("/");
+    window.__LIA_TEXTMARKER_REG_V4__.setHighlights([{
+      id: 1,
+      kind: "user",
+      color: "red",
+      scope: "global",
+      slide: "global",
+      rects: [],
+      anchor: { sp: path, so: 0, ep: path, eo: text.textContent.length },
+    }]);
+  });
+
+  await expectHighlightOver(page, page.locator("#marked-text"), "user");
+  await expect(page.locator(".dynFlex")).not.toHaveAttribute("data-hl-slideid");
+  await expect(page.locator("#outer-slide")).toHaveAttribute("data-hl-slideid", /SLIDE_/);
+});

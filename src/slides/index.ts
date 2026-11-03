@@ -34,7 +34,13 @@ export function getSlideCandidates(): Element[] {
     }
   }
 
-  return slides.filter((el, i, arr) => arr.indexOf(el) === i);
+  return slides.filter((el, i, arr) =>
+    arr.indexOf(el) === i &&
+    // Authored DynFlex sections are layout content inside a LiaScript slide,
+    // not nested Reveal slides. Assigning them their own id makes highlights
+    // belong to the card while Reveal reports the outer slide as active.
+    !el.closest(".dynFlex")
+  );
 }
 
 export function ensureSlideIds(): void {
