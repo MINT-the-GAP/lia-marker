@@ -61,6 +61,13 @@ https://github.com/MINT-the-GAP/lia-marker
           --{{0}}--
 A toolbar button appears in the navigation bar. Click it to open the color picker, then drag over text to highlight it. Click a highlight to remove it.
 
+When this template and **lia-annotation** are loaded in the same course, the
+existing Textmarker button automatically moves into the annotation toolbar.
+Both template import orders are supported. Only the button is moved; the
+Textmarker palette remains an independent floating panel. If the annotation
+template is absent or rejects the registration, the established header/floating
+placement is used unchanged.
+
 ## Explain Word Mode
 
           --{{0}}--

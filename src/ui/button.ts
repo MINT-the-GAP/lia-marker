@@ -39,7 +39,7 @@ export function ensureHLUIOverlay(): HTMLElement {
 
 export interface Viewport { w: number; h: number; ox: number; oy: number; }
 export interface ButtonLayout {
-  left: number; top: number; width: number; height: number; stacked: boolean;
+  left: number; top: number; width: number; height: number; stacked: boolean; hosted: boolean;
 }
 interface AnchorRect { left: number; top: number; right: number; bottom: number; width: number; height: number; }
 const lastAnchors = new Map<boolean, AnchorRect>();
@@ -78,6 +78,19 @@ function readAnchor(stacked: boolean): AnchorRect | null {
 
 /** Read only. All coordinates and lengths are ROOT_DOC layout-viewport CSS px. */
 export function measureHLButton(vp: Viewport): ButtonLayout {
+  const hostedButton = ROOT_DOC.getElementById('lia-hl-btn');
+  if (hostedButton?.getAttribute('data-lia-annotation-hosted') === 'true') {
+    const rect = hostedButton.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      stacked: false,
+      hosted: true,
+    };
+  }
+
   const currentSize = `${ROOT_DOC.documentElement.clientWidth},${ROOT_DOC.documentElement.clientHeight}`;
   if (currentSize !== layoutSize) {
     // A genuine layout resize invalidates hidden anchor geometry. Pinch/pan
@@ -109,13 +122,24 @@ export function measureHLButton(vp: Viewport): ButtonLayout {
   // the first at an edge. Offsets occur exactly once: in these layout bounds.
   left = clamp(left, vp.ox + 8, vp.ox + vp.w - size - (stacked ? 0 : lane) - 8);
   top = clamp(top, vp.oy + 8, vp.oy + vp.h - size - (stacked ? lane : 0) - 8);
-  return { left: left + (stacked ? 0 : lane), top: top + (stacked ? lane : 0), width: size, height: size, stacked };
+  return {
+    left: left + (stacked ? 0 : lane),
+    top: top + (stacked ? lane : 0),
+    width: size,
+    height: size,
+    stacked,
+    hosted: false,
+  };
 }
 
 /** Write only; panel geometry has already been measured using this layout. */
 export function applyHLButton(layout: ButtonLayout): void {
   const btn = ROOT_DOC.getElementById("lia-hl-btn");
   if (!btn) return;
+  if (layout.hosted) {
+    toggleClass(ROOT_DOC.body, 'lia-hl-navstack', false);
+    return;
+  }
   toggleClass(ROOT_DOC.body, "lia-hl-navstack", layout.stacked);
   setStyle(btn, "left", `${layout.left}px`);
   setStyle(btn, "top", `${layout.top}px`);
@@ -181,7 +205,10 @@ export function ensureRootButtonAndPanel(): void {
     ROOT_DOC.body.appendChild(panel);
   }
 
-  if (btn.parentNode !== overlayRoot) overlayRoot.appendChild(btn);
+  if (btn.getAttribute('data-lia-annotation-hosted') !== 'true' &&
+      btn.parentNode !== overlayRoot) {
+    overlayRoot.appendChild(btn);
+  }
   // One-time migration from older inline/translated hosts. Never reset these
   // positions during a measurement or a viewport event.
   ROOT_DOC.getElementById(HL_INLINE_SLOT_ID)?.remove();

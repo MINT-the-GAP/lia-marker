@@ -27,6 +27,16 @@ export interface ToolState {
   color: HLColor;
 }
 
+export interface AnnotationToolbarApi {
+  registerToolbarControl(
+    id: string,
+    element: HTMLElement,
+    options?: { order?: number },
+  ): boolean;
+  unregisterToolbarControl(id: string): boolean;
+  hasToolbarControl(id: string): boolean;
+}
+
 export interface Instance {
   __alive: boolean;
   debugHLQ: boolean;
@@ -50,6 +60,7 @@ export interface Instance {
   __revealedSolutions?: Set<string>;
   __quizGateAttempts?: Map<string | Element, number>;
   __cleanupPosition?: () => void;
+  __cleanupAnnotationDock?: () => void;
   __cleanupQuizGates?: () => void;
   __cleanupResolutions?: () => void;
   [key: string]: unknown;

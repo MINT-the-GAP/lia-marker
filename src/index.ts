@@ -1,4 +1,8 @@
-import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC, getContentRoot } from "./dom/context";
+import {
+  setupAnnotationToolbarDock,
+  syncAnnotationToolbarDock,
+} from './ui/annotationDock';
+import { ROOT_WIN, ROOT_DOC, CONTENT_WIN, CONTENT_DOC, getContentRoot } from './dom/context';
 import cssQuiz    from "bundle-text:./css/quiz.css";
 import cssContent from "bundle-text:./css/content.css";
 import cssRoot    from "bundle-text:./css/root.css";
@@ -37,7 +41,8 @@ const DOC_ID =
 
 function stopInstance(instance: Instance, timerWindow: Window): void {
   try { instance.moSlides?.disconnect(); } catch(e){}
-  try { if (typeof instance.__cleanupPosition === "function") instance.__cleanupPosition(); } catch(e){}
+  try { if (typeof instance.__cleanupPosition === 'function') instance.__cleanupPosition(); } catch(e){}
+  try { instance.__cleanupAnnotationDock?.(); } catch(e){}
   try { instance.__cleanupQuizGates?.(); } catch(e){}
   try { instance.__cleanupResolutions?.(); } catch(e){}
   try { instance.__alive = false; } catch(e){}
@@ -117,6 +122,8 @@ const I: Instance = REG.instances[DOC_ID] = {
   posTimers:     [],
   lastBurstAt:   0
 };
+
+setupAnnotationToolbarDock(I);
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 function ensureStyle(doc: Document, id: string, css: string): void {
@@ -374,6 +381,7 @@ function tick(): void {
       ensureMarkerQuizResolutions(I);
       ensureMarkerQuizGates(I);
       ensureRootButtonAndPanel();
+      syncAnnotationToolbarDock(I);
       localizePanelText();
       wireRootDelegationOnce(I, doRender);
       if (overlay.parentElement !== getContentRoot()) doRender();
