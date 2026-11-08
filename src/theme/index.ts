@@ -42,9 +42,29 @@ export function normalizeColorValue(v: string): string {
 
 export function parseRGB(str: string): { r: number; g: number; b: number } | null {
   if (!str) return null;
-  const m = str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-  if (!m) return null;
-  return { r: parseInt(m[1]), g: parseInt(m[2]), b: parseInt(m[3]) };
+  const channel = (raw: string, unitInterval = false): number | null => {
+    const value = Number.parseFloat(raw);
+    if (!Number.isFinite(value)) return null;
+    const scaled = raw.endsWith("%") ? value * 2.55 : unitInterval ? value * 255 : value;
+    return Math.round(Math.max(0, Math.min(255, scaled)));
+  };
+  const fromMatch = (match: RegExpMatchArray | null, unitInterval = false) => {
+    if (!match) return null;
+    const values = match.slice(1, 4).map(value => channel(value, unitInterval));
+    if (values.some(value => value === null)) return null;
+    return { r: values[0]!, g: values[1]!, b: values[2]! };
+  };
+  const rgb = str.match(
+    /^rgba?\(\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)(?:\s*,\s*|\s+)([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)(?:\s*,\s*|\s+)([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)(?:\s*[,/][^)]*)?\s*\)$/i,
+  );
+  if (rgb) return fromMatch(rgb);
+
+  // Chromium preserves CSS Color 4 values in computed styles. LiaScript
+  // currently emits its dark-theme toolbar accent as color(srgb ...).
+  const srgb = str.match(
+    /^color\(\s*srgb\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)(?:\s*\/[^)]*)?\s*\)$/i,
+  );
+  return fromMatch(srgb, true);
 }
 
 export function luminance(c: { r: number; g: number; b: number }): number {
@@ -109,7 +129,40 @@ function readRenderedAccentFromToolbar(): string {
   const left = findHeaderLeft();
   const tocBtn = left ? findTOCButtonInLeft(left) : null;
 
+  const firstColor = (elements: (Element | null)[], properties: string[]): string => {
+    for (const el of elements) {
+      if (!el) continue;
+      const cs = getStyleSafe(el);
+      if (!cs) continue;
+      for (const property of properties) {
+        const value = (cs.getPropertyValue(property) || "").trim();
+        if (!value || !parseRGB(value) || isLikelyNeutralColor(value)) continue;
+        return value;
+      }
+    }
+    return "";
+  };
+
+  // LiaScript renders the visible language code (for example "EN") here.
+  // It is the most stable reference for the header controls' foreground color.
+  const languageLabel = ROOT_DOC.querySelector(
+    ".lia-support-menu__item--lang .lia-support-menu__lang",
+  );
+  const languageAccent = firstColor(
+    [languageLabel, languageLabel?.closest("button") || null],
+    ["color", "stroke", "fill"],
+  );
+  if (languageAccent) return languageAccent;
+
+  const rightButton = ROOT_DOC.querySelector(
+    ".lia-header__right .lia-support-menu__nav button",
+  );
+
   const candidates = [
+    rightButton,
+    rightButton?.querySelector("svg") || null,
+    rightButton?.querySelector("svg *") || null,
+    rightButton?.querySelector(".icon") || null,
     tocBtn,
     tocBtn?.querySelector("svg") || null,
     tocBtn?.querySelector("svg *") || null,
@@ -119,27 +172,7 @@ function readRenderedAccentFromToolbar(): string {
     ROOT_DOC.querySelector("header.lia-header svg"),
     ROOT_DOC.querySelector("header.lia-header svg *")
   ];
-
-  for (const el of candidates) {
-    if (!el) continue;
-    const cs = getStyleSafe(el);
-    if (!cs) continue;
-
-    const vals = [
-      (cs.getPropertyValue("stroke") || "").trim(),
-      (cs.getPropertyValue("fill") || "").trim(),
-      (cs.getPropertyValue("color") || "").trim()
-    ];
-
-    for (const v of vals) {
-      if (!v) continue;
-      if (!parseRGB(v)) continue;
-      if (isLikelyNeutralColor(v)) continue;
-      return v;
-    }
-  }
-
-  return "";
+  return firstColor(candidates, ["stroke", "fill", "color"]);
 }
 
 export function adaptUIVars(): void {
@@ -170,7 +203,10 @@ export function adaptUIVars(): void {
   const bg = parseRGB(bgStr) || { r: 255, g: 255, b: 255 };
   const isDark = luminance(bg) < 0.45;
 
-  let accentStr = readThemeAccent() || readRenderedAccentFromToolbar();
+  // Match the controls users actually see in the header. Theme variables such
+  // as --color-highlight may describe darker rules or hover backgrounds and
+  // are therefore only a fallback when no colored toolbar control is present.
+  let accentStr = readRenderedAccentFromToolbar() || readThemeAccent();
   accentStr = normalizeColorValue(accentStr);
   if (!accentStr) accentStr = "rgb(11,95,255)";
 

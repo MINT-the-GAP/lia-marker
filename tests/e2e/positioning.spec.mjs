@@ -6,6 +6,7 @@ const bundleSource = readFileSync(new URL("../../dist/index.js", import.meta.url
 function fixture({ collapsed = false, board = false } = {}) {
   return '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<style>html,body{margin:0;font:18px Arial,sans-serif}main{margin:160px 40px 0;min-height:2200px}' +
+    '.lia-support-menu__lang{color:rgb(20,115,117)!important}html.lia-variant-dark .lia-support-menu__lang{color:color(srgb .164706 .862745 .901961)!important}' +
     '.lia-header__left{position:fixed;left:80px;top:60px;display:flex}' +
     '#lia-btn-toc{box-sizing:border-box;flex:none;width:40px;height:40px;padding:0}' +
     '.lia-navigation--hidden #lia-btn-toc{width:22px;height:22px}' +
@@ -89,6 +90,49 @@ function expectPanelPosition({ button, panel, viewport }) {
   expect(Math.abs(panel.left - left), "panel layout-viewport x").toBeLessThanOrEqual(1);
   expect(Math.abs(panel.top - top), "panel layout-viewport y").toBeLessThanOrEqual(1);
 }
+
+test("matches the marker color to LiaScript's visible language control", async ({ page }) => {
+  await loadFixture(page);
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--color-highlight", "rgb(20, 115, 117)");
+    document.getElementById("lia-btn-toc").style.color = "rgb(20, 115, 117)";
+    document.getElementById("lia-toolbar-nav").insertAdjacentHTML("beforeend", `
+      <div class="lia-header__right">
+        <ul class="lia-support-menu__nav">
+          <li class="lia-support-menu__item--lang">
+            <button style="color: rgb(42, 220, 230)">
+              <span class="lia-support-menu__lang">EN</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    `);
+  });
+  await settle(page, 5);
+  await page.evaluate(() => document.documentElement.classList.add("lia-variant-dark"));
+  await settle(page, 5);
+
+  const colors = await page.evaluate(() => {
+    const channels = (value) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext("2d");
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
+    };
+    return {
+      accent: channels(getComputedStyle(document.documentElement).getPropertyValue("--hl-accent").trim()),
+      language: channels(getComputedStyle(document.querySelector(".lia-support-menu__lang")).color),
+      marker: channels(getComputedStyle(document.querySelector("#lia-hl-btn .marker-body")).fill),
+    };
+  });
+  expect(colors).toEqual({
+    accent: [42, 220, 230],
+    language: [42, 220, 230],
+    marker: [42, 220, 230],
+  });
+});
 
 for (const collapsed of [false, true]) {
   test("simulated viewport: " + (collapsed ? "collapsed" : "normal") + " navigation keeps its anchor through zoom and pan", async ({ page }) => {
